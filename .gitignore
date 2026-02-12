@@ -1,0 +1,74 @@
+# General
+.DS_Store
+Thumbs.db
+*.swp
+*.log
+
+# IDEs
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln.docstates
+*.user
+.vs/
+
+# Node.js / JavaScript / TypeScript
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.yarn/
+
+# Vite / Electron / Frontend Build Output
+dist/
+dist-electron/
+release/
+build/
+.cache/
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+
+# .NET / C# / ASP.NET Core
+bin/
+obj/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+var/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Aspire
+.aspire/
+
+# Visual Studio / Azure
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.ionide/
+
+# User-specific files
+*.user
+appsettings.Development.json
+appsettings.Local.json

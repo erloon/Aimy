@@ -8,9 +8,16 @@ var minioPass = builder.AddParameter("minio-password", secret: true);
 var storage = builder.AddMinioContainer("storage", minioUser, minioPass)
     .WithDataVolume("aimy-storage");
 
+var postgres = builder.AddPostgres("postgres")
+    .WithDataVolume("aimy-postgres");
+
+var db = postgres.AddDatabase("aimydb");
+
 var api = builder.AddProject<Projects.Aimy_API>("api")
     .WithReference(storage)
-    .WaitFor(storage);
+    .WithReference(db)
+    .WaitFor(storage)
+    .WaitFor(postgres);
 
 builder.AddViteApp("frontend", "../../frontend")
     .WithReference(api);

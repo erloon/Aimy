@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -9,11 +9,15 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Aspire.Minio.Client" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <PackageReference Include="Swashbuckle.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Aimy.Core\Aimy.Core.csproj" />
+    <ProjectReference Include="..\Aimy.Infrastructure\Aimy.Infrastructure.csproj" />
     <ProjectReference Include="..\..\aspire\Aimy.ServiceDefaults\Aimy.ServiceDefaults.csproj" />
   </ItemGroup>
 

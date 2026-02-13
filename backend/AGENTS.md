@@ -61,6 +61,11 @@ dotnet list backend/Aimy.Core/Aimy.Core.csproj package
 dotnet list backend/Aimy.Core/Aimy.Core.csproj reference
 ```
 
+## PATTERNS AND CONVENTION
+* Use primary constructors
+* Use `required` keyword for required properties
+* Use `string?` for optional strings
+
 ## ANTI-PATTERNS
 
 | Avoid | Solution |

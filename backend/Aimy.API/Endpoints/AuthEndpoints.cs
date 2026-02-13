@@ -21,7 +21,5 @@ public static class AuthEndpoints
         .WithName("Login");
         
         return app;
-    }
+    }   
 }
-
-public record LoginRequest(string Username, string Password);

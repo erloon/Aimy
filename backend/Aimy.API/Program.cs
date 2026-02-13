@@ -4,6 +4,7 @@ using Aimy.Core;
 using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Domain.Entities;
 using Aimy.Infrastructure;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -43,6 +44,8 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddOpenApi();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.AddMinioClient("storage");
 var app = builder.Build();
 
@@ -60,6 +63,7 @@ app.UseAuthorization();
 
 app.MapDefaultEndpoints();
 app.MapAuthEndpoints();
+app.MapUploadEndpoints();
 
 using (var scope = app.Services.CreateScope())
 {

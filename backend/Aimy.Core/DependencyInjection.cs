@@ -10,6 +10,7 @@ public static class DependencyInjection
     public static IHostApplicationBuilder AddCore(this IHostApplicationBuilder builder)
     {
         builder.Services.AddScoped<IAuthService, AuthService>();
+        builder.Services.AddScoped<IUploadService, UploadService>();
         
         return builder;
     }

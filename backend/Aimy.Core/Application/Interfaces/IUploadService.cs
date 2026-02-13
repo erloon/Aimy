@@ -10,4 +10,15 @@ public interface IUploadService
         string? contentType,
         string? metadata,
         CancellationToken ct);
+
+    Task<PagedResult<UploadFileResponse>> ListAsync(
+        int page,
+        int pageSize,
+        CancellationToken ct);
+
+    Task<Stream> DownloadAsync(Guid id, CancellationToken ct);
+
+    Task DeleteAsync(Guid id, CancellationToken ct);
+
+    Task<UploadFileResponse> UpdateMetadataAsync(Guid id, string? metadata, CancellationToken ct);
 }

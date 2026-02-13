@@ -1,5 +1,6 @@
 using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Application.Services;
+    using Aimy.Core.Application.DTOs;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;
 using Moq;
@@ -168,5 +169,428 @@ public class UploadServiceTests
 
         // Assert
         result.FileName.Should().Be(expectedFileName);
+    }
+
+    [Test]
+    public async Task ListAsync_ValidRequest_ReturnsPagedResult()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var page = 2;
+        var pageSize = 5;
+
+        var uploads = new List<Upload>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                FileName = "a.pdf",
+                StoragePath = "uploads/a.pdf",
+                FileSizeBytes = 100,
+                ContentType = "application/pdf",
+                Metadata = "{\"tag\":\"a\"}",
+                DateUploaded = DateTime.UtcNow.AddMinutes(-2)
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                FileName = "b.pdf",
+                StoragePath = "uploads/b.pdf",
+                FileSizeBytes = 200,
+                ContentType = "application/pdf",
+                Metadata = "{\"tag\":\"b\"}",
+                DateUploaded = DateTime.UtcNow.AddMinutes(-1)
+            }
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetPagedAsync(userId, page, pageSize, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<Upload>
+            {
+                Items = uploads,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = 12
+            });
+
+        // Act
+        var result = await _sut.ListAsync(page, pageSize, CancellationToken.None);
+
+        // Assert
+        result.Page.Should().Be(page);
+        result.PageSize.Should().Be(pageSize);
+        result.TotalCount.Should().Be(12);
+        result.Items.Should().HaveCount(2);
+        result.Items[0].Id.Should().Be(uploads[0].Id);
+        result.Items[0].FileName.Should().Be(uploads[0].FileName);
+        result.Items[0].Link.Should().Be(uploads[0].StoragePath);
+        result.Items[0].Metadata.Should().Be(uploads[0].Metadata);
+
+        _uploadRepositoryMock.Verify(r => r.GetPagedAsync(userId, page, pageSize, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public void ListAsync_NoCurrentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns((Guid?)null);
+
+        // Act
+        var act = () => _sut.ListAsync(1, 10, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User is not authenticated");
+
+        _uploadRepositoryMock.Verify(r => r.GetPagedAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task DownloadAsync_ValidOwnedFile_ReturnsStream()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+        var storagePath = "uploads/user/file.pdf";
+        var expectedStream = new MemoryStream([1, 2, 3]);
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Upload
+            {
+                Id = uploadId,
+                UserId = userId,
+                FileName = "file.pdf",
+                StoragePath = storagePath
+            });
+
+        _storageServiceMock
+            .Setup(s => s.DownloadAsync(storagePath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedStream);
+
+        // Act
+        var result = await _sut.DownloadAsync(uploadId, CancellationToken.None);
+
+        // Assert
+        result.Should().BeSameAs(expectedStream);
+
+        _uploadRepositoryMock.Verify(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
+        _storageServiceMock.Verify(s => s.DownloadAsync(storagePath, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public void DownloadAsync_NoCurrentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var uploadId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns((Guid?)null);
+
+        // Act
+        var act = () => _sut.DownloadAsync(uploadId, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User is not authenticated");
+
+        _uploadRepositoryMock.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _storageServiceMock.Verify(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void DownloadAsync_FileNotFound_ThrowsKeyNotFoundException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Upload?)null);
+
+        // Act
+        var act = () => _sut.DownloadAsync(uploadId, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("File not found");
+
+        _storageServiceMock.Verify(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void DownloadAsync_FileOwnedByDifferentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var currentUserId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(currentUserId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Upload
+            {
+                Id = uploadId,
+                UserId = ownerId,
+                FileName = "file.pdf",
+                StoragePath = "uploads/owner/file.pdf"
+            });
+
+        // Act
+        var act = () => _sut.DownloadAsync(uploadId, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User does not have access to this file");
+
+        _storageServiceMock.Verify(s => s.DownloadAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task DeleteAsync_ValidOwnedFile_DeletesFromStorageAndRepository()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+        var storagePath = "uploads/user/file.pdf";
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Upload
+            {
+                Id = uploadId,
+                UserId = userId,
+                FileName = "file.pdf",
+                StoragePath = storagePath
+            });
+
+        // Act
+        await _sut.DeleteAsync(uploadId, CancellationToken.None);
+
+        // Assert
+        _storageServiceMock.Verify(s => s.DeleteAsync(storagePath, It.IsAny<CancellationToken>()), Times.Once);
+        _uploadRepositoryMock.Verify(r => r.DeleteAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public void DeleteAsync_NoCurrentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var uploadId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns((Guid?)null);
+
+        // Act
+        var act = () => _sut.DeleteAsync(uploadId, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User is not authenticated");
+
+        _uploadRepositoryMock.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void DeleteAsync_FileNotFound_ThrowsKeyNotFoundException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Upload?)null);
+
+        // Act
+        var act = () => _sut.DeleteAsync(uploadId, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("File not found");
+
+        _storageServiceMock.Verify(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _uploadRepositoryMock.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void DeleteAsync_FileOwnedByDifferentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var currentUserId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(currentUserId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Upload
+            {
+                Id = uploadId,
+                UserId = ownerId,
+                FileName = "file.pdf",
+                StoragePath = "uploads/owner/file.pdf"
+            });
+
+        // Act
+        var act = () => _sut.DeleteAsync(uploadId, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User does not have access to this file");
+
+        _storageServiceMock.Verify(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _uploadRepositoryMock.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task UpdateMetadataAsync_ValidOwnedFile_UpdatesMetadataAndReturnsResponse()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+        var newMetadata = "{\"category\":\"invoice\"}";
+
+        var upload = new Upload
+        {
+            Id = uploadId,
+            UserId = userId,
+            FileName = "file.pdf",
+            StoragePath = "uploads/user/file.pdf",
+            FileSizeBytes = 1000,
+            ContentType = "application/pdf",
+            Metadata = "{\"category\":\"old\"}",
+            DateUploaded = DateTime.UtcNow.AddDays(-1)
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(upload);
+
+        // Act
+        var result = await _sut.UpdateMetadataAsync(uploadId, newMetadata, CancellationToken.None);
+
+        // Assert
+        result.Id.Should().Be(uploadId);
+        result.FileName.Should().Be(upload.FileName);
+        result.Metadata.Should().Be(newMetadata);
+        result.Link.Should().Be(upload.StoragePath);
+
+        _uploadRepositoryMock.Verify(r => r.UpdateAsync(It.Is<Upload>(u => u.Id == uploadId && u.Metadata == newMetadata), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public void UpdateMetadataAsync_NoCurrentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var uploadId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns((Guid?)null);
+
+        // Act
+        var act = () => _sut.UpdateMetadataAsync(uploadId, "{}", CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User is not authenticated");
+
+        _uploadRepositoryMock.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void UpdateMetadataAsync_FileNotFound_ThrowsKeyNotFoundException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Upload?)null);
+
+        // Act
+        var act = () => _sut.UpdateMetadataAsync(uploadId, "{}", CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("File not found");
+
+        _uploadRepositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void UpdateMetadataAsync_FileOwnedByDifferentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var currentUserId = Guid.NewGuid();
+        var ownerId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(currentUserId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Upload
+            {
+                Id = uploadId,
+                UserId = ownerId,
+                FileName = "file.pdf",
+                StoragePath = "uploads/owner/file.pdf"
+            });
+
+        // Act
+        var act = () => _sut.UpdateMetadataAsync(uploadId, "{}", CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User does not have access to this file");
+
+        _uploadRepositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

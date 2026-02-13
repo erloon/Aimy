@@ -40,6 +40,46 @@ public class MinioStorageService : IStorageService
         return $"{bucketName}/{objectName}";
     }
 
+    public async Task<Stream> DownloadAsync(string storagePath, CancellationToken ct)
+    {
+        var (bucketName, objectName) = ParseStoragePath(storagePath);
+        
+        var memoryStream = new MemoryStream();
+        await _minio.GetObjectAsync(new GetObjectArgs()
+            .WithBucket(bucketName)
+            .WithObject(objectName)
+            .WithCallbackStream(async (stream, _) => 
+            {
+                await stream.CopyToAsync(memoryStream, ct);
+            }), ct);
+        
+        memoryStream.Position = 0;
+        return memoryStream;
+    }
+
+    public async Task DeleteAsync(string storagePath, CancellationToken ct)
+    {
+        var (bucketName, objectName) = ParseStoragePath(storagePath);
+        
+        await _minio.RemoveObjectAsync(new RemoveObjectArgs()
+            .WithBucket(bucketName)
+            .WithObject(objectName), ct);
+    }
+
+    private static (string bucketName, string objectName) ParseStoragePath(string storagePath)
+    {
+        var separatorIndex = storagePath.IndexOf('/');
+        if (separatorIndex < 0)
+        {
+            throw new ArgumentException($"Invalid storage path format: {storagePath}. Expected format: {{bucketName}}/{{objectName}}", nameof(storagePath));
+        }
+        
+        var bucketName = storagePath.Substring(0, separatorIndex);
+        var objectName = storagePath.Substring(separatorIndex + 1);
+        
+        return (bucketName, objectName);
+    }
+
     private async Task EnsureBucketExistsAsync(string bucketName, CancellationToken ct)
     {
         var exists = await _minio.BucketExistsAsync(

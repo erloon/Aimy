@@ -66,6 +66,86 @@ public class UploadService : IUploadService
         };
     }
 
+    public async Task<PagedResult<UploadFileResponse>> ListAsync(int page, int pageSize, CancellationToken ct)
+    {
+        var userId = _currentUserService.GetCurrentUserId();
+        if (userId is null)
+            throw new UnauthorizedAccessException("User is not authenticated");
+
+        var pagedUploads = await _uploadRepository.GetPagedAsync(userId.Value, page, pageSize, ct);
+
+        return new PagedResult<UploadFileResponse>
+        {
+            Items = pagedUploads.Items.Select(MapToUploadFileResponse).ToList(),
+            Page = pagedUploads.Page,
+            PageSize = pagedUploads.PageSize,
+            TotalCount = pagedUploads.TotalCount
+        };
+    }
+
+    public async Task<Stream> DownloadAsync(Guid id, CancellationToken ct)
+    {
+        var userId = _currentUserService.GetCurrentUserId();
+        if (userId is null)
+            throw new UnauthorizedAccessException("User is not authenticated");
+
+        var upload = await _uploadRepository.GetByIdAsync(id, ct)
+            ?? throw new KeyNotFoundException("File not found");
+
+        if (upload.UserId != userId.Value)
+            throw new UnauthorizedAccessException("User does not have access to this file");
+
+        return await _storageService.DownloadAsync(upload.StoragePath, ct);
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken ct)
+    {
+        var userId = _currentUserService.GetCurrentUserId();
+        if (userId is null)
+            throw new UnauthorizedAccessException("User is not authenticated");
+
+        var upload = await _uploadRepository.GetByIdAsync(id, ct)
+            ?? throw new KeyNotFoundException("File not found");
+
+        if (upload.UserId != userId.Value)
+            throw new UnauthorizedAccessException("User does not have access to this file");
+
+        await _storageService.DeleteAsync(upload.StoragePath, ct);
+        await _uploadRepository.DeleteAsync(id, ct);
+    }
+
+    public async Task<UploadFileResponse> UpdateMetadataAsync(Guid id, string? metadata, CancellationToken ct)
+    {
+        var userId = _currentUserService.GetCurrentUserId();
+        if (userId is null)
+            throw new UnauthorizedAccessException("User is not authenticated");
+
+        var upload = await _uploadRepository.GetByIdAsync(id, ct)
+            ?? throw new KeyNotFoundException("File not found");
+
+        if (upload.UserId != userId.Value)
+            throw new UnauthorizedAccessException("User does not have access to this file");
+
+        upload.Metadata = metadata;
+        await _uploadRepository.UpdateAsync(upload, ct);
+
+        return MapToUploadFileResponse(upload);
+    }
+
+    private static UploadFileResponse MapToUploadFileResponse(Upload upload)
+    {
+        return new UploadFileResponse
+        {
+            Id = upload.Id,
+            FileName = upload.FileName,
+            ContentType = upload.ContentType,
+            Link = upload.StoragePath,
+            SizeBytes = upload.FileSizeBytes,
+            UploadedAt = upload.DateUploaded,
+            Metadata = upload.Metadata
+        };
+    }
+
     private async Task<string> GetUniqueFileNameAsync(Guid userId, string originalFileName, CancellationToken ct)
     {
         var existingUploads = await _uploadRepository.GetByUserIdAndFileNameAsync(userId, originalFileName, ct);

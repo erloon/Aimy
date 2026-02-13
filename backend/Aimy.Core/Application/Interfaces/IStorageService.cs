@@ -8,4 +8,8 @@ public interface IStorageService
         Stream fileStream,
         string? contentType,
         CancellationToken ct);
+
+    Task<Stream> DownloadAsync(string storagePath, CancellationToken ct);
+
+    Task DeleteAsync(string storagePath, CancellationToken ct);
 }

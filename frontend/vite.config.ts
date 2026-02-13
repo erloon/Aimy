@@ -26,6 +26,16 @@ export default defineConfig({
         : {},
     }),
   ],
+  server: {
+    proxy: {
+      '/api': {
+        target: process.env.services__api__https__0 || process.env.services__api__http__0,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+        secure: false,
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

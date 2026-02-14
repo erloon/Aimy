@@ -46,6 +46,26 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(options =>
 {
+    // Include XML comments for better documentation
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath);
+    }
+
+    // Configure API metadata
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Aimy API",
+        Version = "v1",
+        Description = "API for file upload and management system with authentication",
+        Contact = new OpenApiContact
+        {
+            Name = "Aimy Team"
+        }
+    });
+
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -56,13 +76,12 @@ builder.Services.AddSwaggerGen(options =>
         Description = "JWT Authorization header using the Bearer scheme. \r\n\r\n Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer 12345abcdef\""
     });
 
-    options.AddSecurityRequirement(document =>
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {
-        var schemeRef = new OpenApiSecuritySchemeReference("Bearer", document);
-        return new OpenApiSecurityRequirement
         {
-            [schemeRef] = new List<string>()
-        };
+            new OpenApiSecuritySchemeReference("Bearer", document),
+            new List<string>()
+        }
     });
 });
 builder.Services.AddHttpContextAccessor();

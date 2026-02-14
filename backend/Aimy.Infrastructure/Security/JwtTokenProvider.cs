@@ -8,19 +8,12 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Aimy.Infrastructure.Security;
 
-public class JwtTokenProvider : ITokenProvider
+public class JwtTokenProvider(IConfiguration configuration) : ITokenProvider
 {
-    private readonly IConfiguration _configuration;
-
-    public JwtTokenProvider(IConfiguration configuration)
-    {
-        _configuration = configuration;
-    }
-
     public string GenerateToken(User user)
     {
         var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
+            Encoding.UTF8.GetBytes(configuration["Jwt:Key"]!));
         
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         
@@ -32,8 +25,8 @@ public class JwtTokenProvider : ITokenProvider
         };
         
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: configuration["Jwt:Issuer"],
+            audience: configuration["Jwt:Audience"],
             claims: claims,
             expires: DateTime.UtcNow.AddHours(1),
             signingCredentials: credentials);

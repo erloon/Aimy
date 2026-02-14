@@ -4,15 +4,8 @@ using Minio.DataModel.Args;
 
 namespace Aimy.Infrastructure.Storage;
 
-public class MinioStorageService : IStorageService
+public class MinioStorageService(IMinioClient minio) : IStorageService
 {
-    private readonly IMinioClient _minio;
-
-    public MinioStorageService(IMinioClient minio)
-    {
-        _minio = minio;
-    }
-
     public async Task<string> UploadAsync(
         Guid userId,
         string fileName,
@@ -29,7 +22,7 @@ public class MinioStorageService : IStorageService
         var objectName = $"{Guid.NewGuid()}_{fileName}";
         
         // Upload file to MinIO
-        await _minio.PutObjectAsync(new PutObjectArgs()
+        await minio.PutObjectAsync(new PutObjectArgs()
             .WithBucket(bucketName)
             .WithObject(objectName)
             .WithStreamData(fileStream)
@@ -45,7 +38,7 @@ public class MinioStorageService : IStorageService
         var (bucketName, objectName) = ParseStoragePath(storagePath);
         
         var memoryStream = new MemoryStream();
-        await _minio.GetObjectAsync(new GetObjectArgs()
+        await minio.GetObjectAsync(new GetObjectArgs()
             .WithBucket(bucketName)
             .WithObject(objectName)
             .WithCallbackStream(async (stream, _) => 
@@ -61,7 +54,7 @@ public class MinioStorageService : IStorageService
     {
         var (bucketName, objectName) = ParseStoragePath(storagePath);
         
-        await _minio.RemoveObjectAsync(new RemoveObjectArgs()
+        await minio.RemoveObjectAsync(new RemoveObjectArgs()
             .WithBucket(bucketName)
             .WithObject(objectName), ct);
     }
@@ -82,12 +75,12 @@ public class MinioStorageService : IStorageService
 
     private async Task EnsureBucketExistsAsync(string bucketName, CancellationToken ct)
     {
-        var exists = await _minio.BucketExistsAsync(
+        var exists = await minio.BucketExistsAsync(
             new BucketExistsArgs().WithBucket(bucketName), ct);
         
         if (!exists)
         {
-            await _minio.MakeBucketAsync(
+            await minio.MakeBucketAsync(
                 new MakeBucketArgs().WithBucket(bucketName), ct);
         }
     }

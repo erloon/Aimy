@@ -1,3 +1,4 @@
+using Aimy.API.Models;
 using Aimy.Core.Application.Interfaces;
 
 namespace Aimy.API.Endpoints;

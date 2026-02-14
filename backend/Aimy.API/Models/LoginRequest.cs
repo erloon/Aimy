@@ -1,3 +1,3 @@
-﻿namespace Aimy.API.Endpoints;
+﻿namespace Aimy.API.Models;
 
 public record LoginRequest(string Username, string Password);

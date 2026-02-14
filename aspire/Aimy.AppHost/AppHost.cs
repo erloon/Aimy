@@ -8,7 +8,7 @@ var minioPass = builder.AddParameter("minio-password", secret: true);
 var storage = builder.AddMinioContainer("storage", minioUser, minioPass)
     .WithDataVolume("aimy-storage");
 
-var postgres = builder.AddPostgres("postgres")
+var postgres = builder.AddPostgres("postgres").WithPgWeb()
     .WithDataVolume("aimy-postgres");
 
 var db = postgres.AddDatabase("aimydb");

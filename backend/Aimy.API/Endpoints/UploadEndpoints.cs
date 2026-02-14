@@ -62,7 +62,8 @@ public static class UploadEndpoints
         uploadsGroup.MapPatch("/{id}/metadata", UpdateMetadata)
             .WithName("UpdateMetadata")
             .WithSummary("Update file metadata")
-            .WithDescription("Updates the metadata of an existing file. Metadata should be provided as a JSON string containing key-value pairs.")
+            .WithDescription("Updates the metadata of an existing file. Metadata should be provided as a JSON object containing key-value pairs.")
+            .Accepts<UpdateMetadataRequest>("application/json")
             .Produces<UploadFileResponse>(StatusCodes.Status200OK)
             .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
@@ -304,8 +305,8 @@ public static class UploadEndpoints
     /// Updates the metadata of an existing file
     /// </summary>
     /// <param name="id">Unique identifier of the file</param>
+    /// <param name="request">Request model containing metadata JSON</param>
     /// <param name="uploadService">Upload service for file operations</param>
-    /// <param name="metadata">JSON string containing key-value pairs for metadata</param>
     /// <param name="ct">Cancellation token</param>
     /// <returns>Updated file information</returns>
     /// <response code="200">Metadata updated successfully</response>
@@ -324,13 +325,13 @@ public static class UploadEndpoints
     /// </remarks>
     private static async Task<Results<Ok<UploadFileResponse>, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> UpdateMetadata(
         Guid id,
+        UpdateMetadataRequest request,
         IUploadService uploadService,
-        string? metadata,
         CancellationToken ct)
     {
         try
         {
-            var result = await uploadService.UpdateMetadataAsync(id, metadata, ct);
+            var result = await uploadService.UpdateMetadataAsync(id, request.Metadata, ct);
             return TypedResults.Ok(result);
         }
         catch (UnauthorizedAccessException)

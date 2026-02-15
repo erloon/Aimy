@@ -1,4 +1,5 @@
 using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.Auth;
 using Aimy.Core.Application.Services;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;

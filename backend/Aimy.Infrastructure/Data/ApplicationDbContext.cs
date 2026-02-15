@@ -7,6 +7,10 @@ namespace Aimy.Infrastructure.Data;
 public class ApplicationDbContext : DbContext
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<Upload> Uploads => Set<Upload>();
+    public DbSet<KnowledgeBase> KnowledgeBases => Set<KnowledgeBase>();
+    public DbSet<Folder> Folders => Set<Folder>();
+    public DbSet<KnowledgeItem> KnowledgeItems => Set<KnowledgeItem>();
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {

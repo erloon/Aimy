@@ -22,6 +22,145 @@ namespace Aimy.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.Folder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("KnowledgeBaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<Guid?>("ParentFolderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KnowledgeBaseId");
+
+                    b.HasIndex("ParentFolderId");
+
+                    b.ToTable("folders", (string)null);
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.KnowledgeBase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("knowledge_bases", (string)null);
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.KnowledgeItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FolderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ItemType")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("SourceUploadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tags")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FolderId");
+
+                    b.HasIndex("ItemType");
+
+                    b.HasIndex("SourceUploadId");
+
+                    b.ToTable("knowledge_items", (string)null);
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.Upload", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime>("DateUploaded")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "FileName");
+
+                    b.ToTable("uploads", (string)null);
+                });
+
             modelBuilder.Entity("Aimy.Core.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -47,6 +186,63 @@ namespace Aimy.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.Folder", b =>
+                {
+                    b.HasOne("Aimy.Core.Domain.Entities.KnowledgeBase", "KnowledgeBase")
+                        .WithMany("Folders")
+                        .HasForeignKey("KnowledgeBaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Aimy.Core.Domain.Entities.Folder", "ParentFolder")
+                        .WithMany("SubFolders")
+                        .HasForeignKey("ParentFolderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("KnowledgeBase");
+
+                    b.Navigation("ParentFolder");
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.KnowledgeBase", b =>
+                {
+                    b.HasOne("Aimy.Core.Domain.Entities.User", null)
+                        .WithOne()
+                        .HasForeignKey("Aimy.Core.Domain.Entities.KnowledgeBase", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.KnowledgeItem", b =>
+                {
+                    b.HasOne("Aimy.Core.Domain.Entities.Folder", "Folder")
+                        .WithMany("Items")
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Aimy.Core.Domain.Entities.Upload", "SourceUpload")
+                        .WithMany()
+                        .HasForeignKey("SourceUploadId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Folder");
+
+                    b.Navigation("SourceUpload");
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.Folder", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("SubFolders");
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.KnowledgeBase", b =>
+                {
+                    b.Navigation("Folders");
                 });
 #pragma warning restore 612, 618
         }

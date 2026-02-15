@@ -1,4 +1,5 @@
 using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.Auth;
 
 namespace Aimy.Infrastructure.Security;
 

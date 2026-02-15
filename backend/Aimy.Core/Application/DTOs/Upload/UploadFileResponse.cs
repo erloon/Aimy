@@ -1,0 +1,49 @@
+namespace Aimy.Core.Application.DTOs.Upload;
+
+/// <summary>
+/// Response model for uploaded file information
+/// </summary>
+public class UploadFileResponse
+{
+    /// <summary>
+    /// Unique identifier for the uploaded file
+    /// </summary>
+    /// <example>3fa85f64-5717-4562-b3fc-2c963f66afa6</example>
+    public Guid Id { get; set; }
+
+    /// <summary>
+    /// Original name of the uploaded file
+    /// </summary>
+    /// <example>document.pdf</example>
+    public required string FileName { get; set; }
+
+    /// <summary>
+    /// MIME type of the file
+    /// </summary>
+    /// <example>application/pdf</example>
+    public string? ContentType { get; set; }
+
+    /// <summary>
+    /// Size of the file in bytes
+    /// </summary>
+    /// <example>1048576</example>
+    public long SizeBytes { get; set; }
+
+    /// <summary>
+    /// Timestamp when the file was uploaded (UTC)
+    /// </summary>
+    /// <example>2024-02-14T20:00:00Z</example>
+    public DateTime UploadedAt { get; set; }
+
+    /// <summary>
+    /// Download link for the file
+    /// </summary>
+    /// <example>/uploads/3fa85f64-5717-4562-b3fc-2c963f66afa6/download</example>
+    public required string Link { get; set; }
+
+    /// <summary>
+    /// Optional JSON string containing key-value pairs for file metadata
+    /// </summary>
+    /// <example>{"category": "documents", "tags": ["important", "2024"]}</example>
+    public string? Metadata { get; set; }
+}

@@ -43,6 +43,12 @@ export async function fetchClient<T>(
   })
   
   if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('authToken')
+      window.location.href = '/#/login'
+      throw new ApiError(401, 'Unauthorized', 'Session expired')
+    }
+
     const errorData = await response.json().catch(() => ({}))
     throw new ApiError(
       response.status,

@@ -104,6 +104,9 @@ app.UseAuthorization();
 app.MapDefaultEndpoints();
 app.MapAuthEndpoints();
 app.MapUploadEndpoints();
+app.MapFolderEndpoints();
+app.MapKnowledgeItemEndpoints();
+
 
 using (var scope = app.Services.CreateScope())
 {

@@ -27,6 +27,11 @@ public static class DependencyInjection
         // Storage
         builder.Services.AddScoped<IStorageService, MinioStorageService>();
         
+        // Knowledge Base repositories
+        builder.Services.AddScoped<IKnowledgeBaseRepository, KnowledgeBaseRepository>();
+        builder.Services.AddScoped<IFolderRepository, FolderRepository>();
+        builder.Services.AddScoped<IKnowledgeItemRepository, KnowledgeItemRepository>();
+        
         return builder;
     }
 }

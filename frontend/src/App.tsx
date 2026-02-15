@@ -5,6 +5,7 @@ import MainLayout from '@/components/layouts/MainLayout'
 import AuthLayout from '@/components/layouts/AuthLayout'
 import { StoragePage } from '@/features/storage/pages/StoragePage'
 import { StorageComponentsDemoPage } from '@/features/storage/pages/StorageComponentsDemoPage'
+import { KnowledgeBasePage } from '@/features/knowledge-base/pages/KnowledgeBasePage'
 import Login from '@/pages/Login'
 import { queryClient } from '@/lib/react-query'
 import { Toaster } from '@/components/ui/toaster'
@@ -20,6 +21,7 @@ function App() {
               <Route path="/" element={<Navigate to="/storage" replace />} />
               <Route path="/storage" element={<StoragePage />} />
               <Route path="/storage/demo" element={<StorageComponentsDemoPage />} />
+              <Route path="/knowledge-base" element={<KnowledgeBasePage />} />
             </Route>
           </Route>
           <Route element={<AuthLayout />}>

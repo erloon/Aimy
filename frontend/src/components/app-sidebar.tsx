@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar"
 import {
     HardDrive,
+    BookOpen,
 } from "lucide-react"
 
 // This is sample data.
@@ -24,6 +25,12 @@ const data = {
             title: "Storage",
             url: "#/storage",
             icon: HardDrive,
+            isActive: false,
+        },
+        {
+            title: "Knowledge Base",
+            url: "#/knowledge-base",
+            icon: BookOpen,
             isActive: true,
         },
         {

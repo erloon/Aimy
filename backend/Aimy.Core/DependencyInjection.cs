@@ -11,7 +11,10 @@ public static class DependencyInjection
     {
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<IUploadService, UploadService>();
-        
+        builder.Services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
+        builder.Services.AddScoped<IFolderService, FolderService>();
+        builder.Services.AddScoped<IKnowledgeItemService, KnowledgeItemService>();
+
         return builder;
     }
 }

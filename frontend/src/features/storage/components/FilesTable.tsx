@@ -11,13 +11,18 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Checkbox } from '@/components/ui/checkbox'
 import type { NormalizedFileItem } from '../api/storage-api'
 
 interface FilesTableProps {
   files: NormalizedFileItem[]
   isLoading?: boolean
-  renderActions: (file: NormalizedFileItem) => React.ReactNode
+  renderActions?: (file: NormalizedFileItem) => React.ReactNode
   className?: string
+  // Selection props
+  selectedIds?: string[]
+  onSelect?: (ids: string[]) => void
+  multiSelect?: boolean
 }
 
 // Map extensions to icons
@@ -50,7 +55,45 @@ function formatDate(dateString: string | undefined): string {
   }
 }
 
-export function FilesTable({ files, isLoading, renderActions, className }: FilesTableProps) {
+export function FilesTable({
+  files,
+  isLoading,
+  renderActions,
+  className,
+  selectedIds,
+  onSelect,
+  multiSelect = true
+}: FilesTableProps) {
+  const isSelectionEnabled = !!onSelect
+  const allSelected = files.length > 0 && files.every(f => selectedIds?.includes(f.id))
+  const someSelected = files.some(f => selectedIds?.includes(f.id)) && !allSelected
+
+  const toggleSelectAll = () => {
+    if (!onSelect) return
+    if (allSelected) {
+      onSelect([])
+    } else {
+      onSelect(files.map(f => f.id))
+    }
+  }
+
+  const toggleSelectOne = (id: string) => {
+    if (!onSelect) return
+    if (!selectedIds) {
+      onSelect([id])
+      return
+    }
+
+    if (selectedIds.includes(id)) {
+      onSelect(selectedIds.filter(i => i !== id))
+    } else {
+      if (multiSelect) {
+        onSelect([...selectedIds, id])
+      } else {
+        onSelect([id])
+      }
+    }
+  }
   if (isLoading) {
     return (
       <div className={cn('space-y-3', className)}>
@@ -84,6 +127,17 @@ export function FilesTable({ files, isLoading, renderActions, className }: Files
       <Table>
         <TableHeader>
           <TableRow>
+            {isSelectionEnabled && (
+              <TableHead className="w-12">
+                {multiSelect && (
+                  <Checkbox
+                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                    onCheckedChange={toggleSelectAll}
+                    aria-label="Select all"
+                  />
+                )}
+              </TableHead>
+            )}
             <TableHead className="w-12"></TableHead>
             <TableHead>Name</TableHead>
             <TableHead className="w-24">Size</TableHead>
@@ -95,7 +149,19 @@ export function FilesTable({ files, isLoading, renderActions, className }: Files
           {files.map((file) => {
             const Icon = getFileIcon(file.filename)
             return (
-              <TableRow key={file.id}>
+              <TableRow
+                key={file.id}
+                data-state={selectedIds?.includes(file.id) ? "selected" : undefined}
+              >
+                {isSelectionEnabled && (
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds?.includes(file.id)}
+                      onCheckedChange={() => toggleSelectOne(file.id)}
+                      aria-label={`Select ${file.filename}`}
+                    />
+                  </TableCell>
+                )}
                 <TableCell>
                   <div className="flex items-center justify-center">
                     <Icon className="h-5 w-5 text-muted-foreground" />
@@ -113,7 +179,7 @@ export function FilesTable({ files, isLoading, renderActions, className }: Files
                   {formatDate(file.uploadedAt)}
                 </TableCell>
                 <TableCell>
-                  {renderActions(file)}
+                  {renderActions && renderActions(file)}
                 </TableCell>
               </TableRow>
             )

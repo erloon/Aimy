@@ -26,6 +26,12 @@ const data = {
             icon: HardDrive,
             isActive: true,
         },
+        {
+            title: "Storage Demo",
+            url: "#/storage/demo",
+            icon: HardDrive,
+            isActive: false,
+        },
     ],
 }
 

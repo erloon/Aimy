@@ -1,4 +1,4 @@
-namespace Aimy.Core.Application.DTOs;
+namespace Aimy.Core.Application.DTOs.Upload;
 
 /// <summary>
 /// Response model for uploaded file information

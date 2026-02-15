@@ -1,3 +1,7 @@
+using Aimy.Core.Application.Interfaces.Auth;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
+using Aimy.Core.Application.Interfaces.Upload;
+
 namespace Aimy.Core.Application.Services;
 
 using Aimy.Core.Application.DTOs;

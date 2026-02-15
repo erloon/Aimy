@@ -1,7 +1,9 @@
 using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Application.Services;
     using Aimy.Core.Application.DTOs;
-using Aimy.Core.Domain.Entities;
+    using Aimy.Core.Application.Interfaces.Auth;
+    using Aimy.Core.Application.Interfaces.Upload;
+    using Aimy.Core.Domain.Entities;
 using FluentAssertions;
 using Moq;
 
@@ -13,6 +15,7 @@ public class UploadServiceTests
     private Mock<IStorageService> _storageServiceMock = null!;
     private Mock<IUploadRepository> _uploadRepositoryMock = null!;
     private Mock<ICurrentUserService> _currentUserServiceMock = null!;
+    private Mock<IUploadQueueWriter> _queueWriterMock = null!;
     private UploadService _sut = null!;
 
     [SetUp]
@@ -21,10 +24,13 @@ public class UploadServiceTests
         _storageServiceMock = new Mock<IStorageService>();
         _uploadRepositoryMock = new Mock<IUploadRepository>();
         _currentUserServiceMock = new Mock<ICurrentUserService>();
+        _queueWriterMock = new Mock<IUploadQueueWriter>();
         _sut = new UploadService(
             _storageServiceMock.Object,
             _uploadRepositoryMock.Object,
-            _currentUserServiceMock.Object);
+            _currentUserServiceMock.Object,
+            _queueWriterMock.Object
+            );
     }
 
     [Test]

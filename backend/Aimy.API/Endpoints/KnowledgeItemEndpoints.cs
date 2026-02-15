@@ -3,6 +3,8 @@ using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.DTOs.KnowledgeBase;
 using Aimy.Core.Domain.Entities;
 using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
+using Aimy.Core.Application.Interfaces.Upload;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Aimy.API.Endpoints;

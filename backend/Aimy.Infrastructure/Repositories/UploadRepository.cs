@@ -1,5 +1,6 @@
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Domain.Entities;
 using Aimy.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;

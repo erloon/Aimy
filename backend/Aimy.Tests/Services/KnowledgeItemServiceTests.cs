@@ -1,6 +1,9 @@
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.DTOs.KnowledgeBase;
 using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.Auth;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
+using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Application.Services;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;

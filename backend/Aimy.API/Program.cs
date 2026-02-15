@@ -1,9 +1,10 @@
 using System.Text;
 using Aimy.API.Endpoints;
 using Aimy.Core;
-using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.Auth;
 using Aimy.Core.Domain.Entities;
 using Aimy.Infrastructure;
+using Aimy.ServiceDefaults;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -12,13 +13,12 @@ using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+
 builder.AddServiceDefaults();
 
-// Infrastructure services (DbContext, repositories, adapters)
 builder.AddInfrastructure();
-
-// Core services
 builder.AddCore();
 
 // Authentication & Authorization

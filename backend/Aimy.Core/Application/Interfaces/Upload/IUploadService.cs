@@ -1,6 +1,7 @@
-namespace Aimy.Core.Application.Interfaces;
-
 using Aimy.Core.Application.DTOs;
+using Aimy.Core.Application.DTOs.Upload;
+
+namespace Aimy.Core.Application.Interfaces.Upload;
 
 public interface IUploadService
 {

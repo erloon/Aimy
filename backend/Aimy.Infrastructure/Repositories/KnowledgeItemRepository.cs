@@ -1,3 +1,6 @@
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
+using Aimy.Core.Application.Interfaces.Upload;
+
 namespace Aimy.Infrastructure.Repositories;
 
 using Aimy.Core.Application.DTOs;

@@ -1,5 +1,9 @@
-using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.Auth;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
+using Aimy.Core.Application.Interfaces.Upload;
+using Aimy.Infrastructure.BackgroundJobs;
 using Aimy.Infrastructure.Data;
+using Aimy.Infrastructure.Messaging;
 using Aimy.Infrastructure.Repositories;
 using Aimy.Infrastructure.Security;
 using Aimy.Infrastructure.Storage;
@@ -32,6 +36,11 @@ public static class DependencyInjection
         builder.Services.AddScoped<IFolderRepository, FolderRepository>();
         builder.Services.AddScoped<IKnowledgeItemRepository, KnowledgeItemRepository>();
         
+        // Messaging
+        var channel = new InMemoryUploadChannel();
+        builder.Services.AddSingleton<IUploadQueueWriter>(channel);
+        builder.Services.AddSingleton<IUploadQueueReader>(channel);
+        builder.Services.AddHostedService<UploadProcessingWorker>();
         return builder;
     }
 }

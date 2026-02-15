@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.Auth;
 using Microsoft.AspNetCore.Http;
 
 namespace Aimy.Infrastructure.Security;

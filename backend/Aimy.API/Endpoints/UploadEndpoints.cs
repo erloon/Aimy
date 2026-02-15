@@ -1,7 +1,9 @@
 using Aimy.API.Models;
 using Aimy.API.Validators;
 using Aimy.Core.Application.DTOs;
+using Aimy.Core.Application.DTOs.Upload;
 using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.Upload;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Aimy.API.Endpoints;

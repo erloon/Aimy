@@ -1,5 +1,6 @@
 using Aimy.API.Models;
 using Aimy.Core.Application.Interfaces;
+using Aimy.Core.Application.Interfaces.Auth;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Aimy.API.Endpoints;

@@ -1,3 +1,5 @@
+using Aimy.Core.Application.Interfaces.Auth;
+
 namespace Aimy.Core.Application.Services;
 
 using Aimy.Core.Application.Interfaces;

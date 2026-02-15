@@ -1,6 +1,6 @@
-namespace Aimy.Core.Application.Interfaces;
-
 using Aimy.Core.Domain.Entities;
+
+namespace Aimy.Core.Application.Interfaces.KnowledgeBase;
 
 public interface IFolderRepository
 {

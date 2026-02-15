@@ -1,13 +1,17 @@
+using Aimy.Core.Application.DTOs.Upload;
+using Aimy.Core.Application.Interfaces.Auth;
+using Aimy.Core.Application.Interfaces.Upload;
+
 namespace Aimy.Core.Application.Services;
 
-using Aimy.Core.Application.DTOs;
-using Aimy.Core.Application.Interfaces;
-using Aimy.Core.Domain.Entities;
+using DTOs;
+using Domain.Entities;
 
 public class UploadService(
     IStorageService storageService,
     IUploadRepository uploadRepository,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    IUploadQueueWriter queueWriter)
     : IUploadService
 {
     public async Task<UploadFileResponse> UploadAsync(
@@ -42,8 +46,8 @@ public class UploadService(
             Metadata = metadata
         };
 
-        var savedUpload = await uploadRepository.AddAsync(upload, ct);
-
+        var savedUpload = await uploadRepository.AddAsync(upload, ct);  
+        await queueWriter.WriteAsync(new UploadToProcess(savedUpload.Id), ct);
         return new UploadFileResponse
         {
             Id = savedUpload.Id,

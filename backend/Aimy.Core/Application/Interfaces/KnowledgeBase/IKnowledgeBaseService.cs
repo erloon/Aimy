@@ -1,6 +1,6 @@
-namespace Aimy.Core.Application.Interfaces;
-
 using Aimy.Core.Application.DTOs.KnowledgeBase;
+
+namespace Aimy.Core.Application.Interfaces.KnowledgeBase;
 
 public interface IKnowledgeBaseService
 {

@@ -1,4 +1,4 @@
-namespace Aimy.Core.Application.Interfaces;
+namespace Aimy.Core.Application.Interfaces.Upload;
 
 public interface IStorageService
 {

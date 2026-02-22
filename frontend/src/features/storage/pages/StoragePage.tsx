@@ -121,7 +121,7 @@ export function StoragePage() {
   }
 
   // Handle metadata save
-  const handleSaveMetadata = (fileId: string, metadata: Record<string, string>) => {
+  const handleSaveMetadata = (fileId: string, metadata: Record<string, unknown>) => {
     updateMetadataMutation.mutate({ id: fileId, metadata })
   }
 

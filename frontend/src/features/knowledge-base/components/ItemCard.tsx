@@ -14,13 +14,18 @@ interface ItemCardProps {
 export function ItemCard({ item, onEdit, onDelete, className }: ItemCardProps) {
   const Icon = item.itemType === 'Note' ? FileText : File
 
-  const tagsList = (() => {
-    if (!item.tags) return []
+  const metadataEntries = (() => {
+    if (!item.metadata) return [] as string[]
     try {
-      const parsed = JSON.parse(item.tags)
-      return Array.isArray(parsed) ? parsed : [String(parsed)]
+      const parsed = JSON.parse(item.metadata) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return Object.entries(parsed as Record<string, unknown>).map(
+          ([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`
+        )
+      }
+      return [JSON.stringify(parsed)]
     } catch {
-      return item.tags.split(',').map(t => t.trim()).filter(Boolean)
+      return [item.metadata]
     }
   })()
 
@@ -56,13 +61,16 @@ export function ItemCard({ item, onEdit, onDelete, className }: ItemCardProps) {
             </span>
           </div>
         )}
-        {tagsList.length > 0 && (
+        {metadataEntries.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
-            {tagsList.map((tag: string) => (
-              <span key={tag} className="text-[10px] bg-secondary text-secondary-foreground px-1 rounded">
-                {tag}
+            {metadataEntries.slice(0, 3).map((entry: string) => (
+              <span key={entry} className="text-[10px] bg-secondary text-secondary-foreground px-1 rounded truncate max-w-[180px]" title={entry}>
+                {entry}
               </span>
             ))}
+            {metadataEntries.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">+{metadataEntries.length - 3}</span>
+            )}
           </div>
         )}
       </CardContent>

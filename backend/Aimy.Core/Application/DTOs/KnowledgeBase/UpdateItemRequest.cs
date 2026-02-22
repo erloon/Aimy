@@ -18,10 +18,10 @@ public class UpdateItemRequest
     public string? Content { get; set; }
 
     /// <summary>
-    /// New JSON array of tags
+    /// New metadata JSON object
     /// </summary>
-    /// <example>["updated", "tags"]</example>
-    public string? Tags { get; set; }
+    /// <example>{"category":"updated","tags":["tags"]}</example>
+    public string? Metadata { get; set; }
 
     /// <summary>
     /// New folder to move the item to

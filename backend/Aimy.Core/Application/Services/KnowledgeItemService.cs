@@ -1,4 +1,5 @@
 using Aimy.Core.Application.Interfaces.Auth;
+using Aimy.Core.Application.Interfaces.Ingestion;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Application.Interfaces.Upload;
 
@@ -6,7 +7,6 @@ namespace Aimy.Core.Application.Services;
 
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.DTOs.KnowledgeBase;
-using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Domain.Entities;
 
 public class KnowledgeItemService(
@@ -14,6 +14,7 @@ public class KnowledgeItemService(
     IFolderRepository folderRepository,
     IKnowledgeItemRepository itemRepository,
     IUploadRepository uploadRepository,
+    IDataIngestionService dataIngestionService,
     IStorageService storageService,
     ICurrentUserService currentUserService) : IKnowledgeItemService
 {
@@ -49,7 +50,7 @@ public class KnowledgeItemService(
             StoragePath = storagePath,
             FileSizeBytes = contentBytes.Length,
             ContentType = "text/markdown",
-            Metadata = request.Tags
+            Metadata = request.Metadata
         };
 
         var savedUpload = await uploadRepository.AddAsync(upload, ct);
@@ -62,7 +63,7 @@ public class KnowledgeItemService(
             Title = request.Title,
             ItemType = KnowledgeItemType.Note,
             Content = request.Content,
-            Tags = request.Tags,
+            Metadata = request.Metadata,
             SourceUploadId = savedUpload.Id
         };
 
@@ -90,14 +91,15 @@ public class KnowledgeItemService(
         if (upload.UserId != userId)
             throw new UnauthorizedAccessException("Upload does not belong to user");
 
-        var resolvedTags = string.IsNullOrWhiteSpace(request.Tags)
+        var resolvedMetadata = string.IsNullOrWhiteSpace(request.Metadata)
             ? upload.Metadata
-            : request.Tags;
+            : request.Metadata;
 
-        if (!string.IsNullOrWhiteSpace(request.Tags))
+        if (!string.IsNullOrWhiteSpace(request.Metadata))
         {
-            upload.Metadata = request.Tags;
+            upload.Metadata = request.Metadata;
             await uploadRepository.UpdateAsync(upload, ct);
+            await dataIngestionService.UpdateMetadataByUploadIdAsync(upload.Id, upload.Metadata, ct);
         }
 
         var item = new KnowledgeItem
@@ -105,7 +107,7 @@ public class KnowledgeItemService(
             FolderId = request.FolderId,
             Title = request.Title ?? upload.FileName,
             ItemType = KnowledgeItemType.File,
-            Tags = resolvedTags,
+            Metadata = resolvedMetadata,
             SourceUploadId = upload.Id
         };
 
@@ -129,10 +131,10 @@ public class KnowledgeItemService(
         var originalContent = item.Content;
         var titleChanged = request.Title is not null && !string.Equals(request.Title, originalTitle, StringComparison.Ordinal);
         var contentChanged = request.Content is not null && !string.Equals(request.Content, originalContent, StringComparison.Ordinal);
-        var tagsChanged = request.Tags is not null;
+        var metadataChanged = request.Metadata is not null;
 
         Upload? sourceUpload = null;
-        if (item.SourceUploadId.HasValue && (tagsChanged || (item.ItemType == KnowledgeItemType.Note && (titleChanged || contentChanged))))
+        if (item.SourceUploadId.HasValue && (metadataChanged || (item.ItemType == KnowledgeItemType.Note && (titleChanged || contentChanged))))
         {
             sourceUpload = await uploadRepository.GetByIdAsync(item.SourceUploadId.Value, ct)
                 ?? throw new KeyNotFoundException("Upload not found");
@@ -164,22 +166,27 @@ public class KnowledgeItemService(
             sourceUpload.ContentType = "text/markdown";
         }
 
-        if (sourceUpload is not null && tagsChanged)
+        if (sourceUpload is not null && metadataChanged)
         {
-            sourceUpload.Metadata = request.Tags;
+            sourceUpload.Metadata = request.Metadata;
         }
 
         if (sourceUpload is not null)
         {
             await uploadRepository.UpdateAsync(sourceUpload, ct);
+
+            if (metadataChanged)
+            {
+                await dataIngestionService.UpdateMetadataByUploadIdAsync(sourceUpload.Id, sourceUpload.Metadata, ct);
+            }
         }
 
         if (request.Title is not null)
             item.Title = request.Title;
         if (request.Content is not null)
             item.Content = request.Content;
-        if (request.Tags is not null)
-            item.Tags = request.Tags;
+        if (request.Metadata is not null)
+            item.Metadata = request.Metadata;
         if (request.FolderId.HasValue)
         {
             // Validate new folder ownership
@@ -274,7 +281,7 @@ public class KnowledgeItemService(
             request.FolderId,
             folderIds,
             request.Search,
-            request.Tags,
+            request.Metadata,
             request.Type,
             request.Page,
             request.PageSize,
@@ -299,7 +306,7 @@ public class KnowledgeItemService(
             Title = item.Title,
             ItemType = item.ItemType,
             Content = item.Content,
-            Tags = item.Tags,
+            Metadata = item.Metadata,
             SourceUploadId = item.SourceUploadId,
             SourceUploadFileName = item.SourceUpload?.FileName,
             SourceUploadMetadata = item.SourceUpload?.Metadata,

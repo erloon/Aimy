@@ -13,12 +13,13 @@ public interface IKnowledgeItemRepository
         Guid? folderId,
         IReadOnlyCollection<Guid>? folderIds,
         string? search,
-        string? tags,
+        string? metadata,
         KnowledgeItemType? type,
         int page,
         int pageSize,
         CancellationToken ct);
     Task<bool> ExistsBySourceUploadIdAsync(Guid sourceUploadId, CancellationToken ct);
+    Task<IReadOnlyCollection<KnowledgeItem>> GetBySourceUploadIdAsync(Guid sourceUploadId, CancellationToken ct);
     Task UpdateAsync(KnowledgeItem item, CancellationToken ct);
     Task DeleteAsync(Guid id, CancellationToken ct);
 }

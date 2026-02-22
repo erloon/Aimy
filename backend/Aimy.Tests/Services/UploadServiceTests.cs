@@ -46,6 +46,14 @@ public class UploadServiceTests
         _knowledgeItemRepositoryMock
             .Setup(r => r.ExistsBySourceUploadIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
+
+        _knowledgeItemRepositoryMock
+            .Setup(r => r.GetBySourceUploadIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        _dataIngestionServiceMock
+            .Setup(s => s.UpdateMetadataByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
     }
 
     [Test]
@@ -637,6 +645,61 @@ public class UploadServiceTests
         result.Link.Should().Be(upload.StoragePath);
 
         _uploadRepositoryMock.Verify(r => r.UpdateAsync(It.Is<Upload>(u => u.Id == uploadId && u.Metadata == newMetadata), It.IsAny<CancellationToken>()), Times.Once);
+        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(uploadId, newMetadata, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task UpdateMetadataAsync_WithLinkedKnowledgeItems_UpdatesLinkedItemsMetadata()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+        var newMetadata = "{\"frameworks\":[\".NET\"]}";
+
+        var upload = new Upload
+        {
+            Id = uploadId,
+            UserId = userId,
+            FileName = "file.pdf",
+            StoragePath = "uploads/user/file.pdf",
+            FileSizeBytes = 1000,
+            ContentType = "application/pdf",
+            Metadata = "{\"category\":\"old\"}",
+            DateUploaded = DateTime.UtcNow.AddDays(-1)
+        };
+
+        var linkedItem = new KnowledgeItem
+        {
+            Id = Guid.NewGuid(),
+            FolderId = Guid.NewGuid(),
+            Title = "Linked File",
+            ItemType = KnowledgeItemType.File,
+            SourceUploadId = uploadId,
+            Metadata = "{\"category\":\"old\"}"
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _uploadRepositoryMock
+            .Setup(r => r.GetByIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(upload);
+
+        _knowledgeItemRepositoryMock
+            .Setup(r => r.GetBySourceUploadIdAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([linkedItem]);
+
+        // Act
+        _ = await _sut.UpdateMetadataAsync(uploadId, newMetadata, CancellationToken.None);
+
+        // Assert
+        _knowledgeItemRepositoryMock.Verify(
+            r => r.UpdateAsync(
+                It.Is<KnowledgeItem>(i => i.Id == linkedItem.Id && i.Metadata == newMetadata),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(uploadId, newMetadata, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]

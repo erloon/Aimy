@@ -24,8 +24,8 @@ public class CreateItemFromUploadRequest
     public string? Title { get; set; }
 
     /// <summary>
-    /// JSON array of tags
+    /// JSON object containing metadata
     /// </summary>
-    /// <example>["document", "important"]</example>
-    public string? Tags { get; set; }
+    /// <example>{"category":"document","tags":["important"]}</example>
+    public string? Metadata { get; set; }
 }

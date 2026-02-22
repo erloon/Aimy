@@ -26,8 +26,8 @@ public class KnowledgeItemConfiguration : IEntityTypeConfiguration<KnowledgeItem
         builder.Property(ki => ki.Content)
             .HasColumnType("text"); // Markdown content
         
-        builder.Property(ki => ki.Tags)
-            .HasColumnType("jsonb"); // JSON array of tags
+        builder.Property(ki => ki.Metadata)
+            .HasColumnType("jsonb");
         
         builder.Property(ki => ki.CreatedAt)
             .IsRequired();

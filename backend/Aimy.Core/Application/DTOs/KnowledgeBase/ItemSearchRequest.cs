@@ -14,10 +14,10 @@ public class ItemSearchRequest
     public string? Search { get; set; }
 
     /// <summary>
-    /// Filter by tags (JSON array)
+    /// Filter by metadata (JSON object)
     /// </summary>
-    /// <example>["meeting", "project-x"]</example>
-    public string? Tags { get; set; }
+    /// <example>{"category":"meeting"}</example>
+    public string? Metadata { get; set; }
 
     /// <summary>
     /// Filter by item type

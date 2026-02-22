@@ -5,6 +5,8 @@ using Aimy.Core.Application.DTOs.Upload;
 using Microsoft.Extensions.DataIngestion;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Aimy.Infrastructure.Ingestion;
 
@@ -56,11 +58,17 @@ public class DataIngestionService(
             document = await processor.ProcessAsync(document, cancellationToken);
         }
 
+        var uploadMetadata = ParseUploadMetadata(upload.Metadata);
+
         var chunks = components.Chunker.ProcessAsync(document, cancellationToken)
             .Select(chunk =>
             {
                 chunk.Metadata["sourceid"] = upload.Id.ToString();
                 chunk.Metadata["createdat"] = DateTime.UtcNow;
+                if (uploadMetadata is not null)
+                {
+                    chunk.Metadata["upload_metadata"] = uploadMetadata;
+                }
                 return chunk;
             });
         foreach (var processor in pipeline.ChunkProcessors)
@@ -76,6 +84,28 @@ public class DataIngestionService(
         await dbContext.IngestionEmbeddings
             .Where(chunk => chunk.SourceId == uploadId.ToString())
             .ExecuteDeleteAsync(cancellationToken);
+    }
+
+    public async Task UpdateMetadataByUploadIdAsync(Guid uploadId, string? metadata, CancellationToken cancellationToken)
+    {
+        var sourceId = uploadId.ToString();
+        var chunks = await dbContext.IngestionEmbeddings
+            .Where(chunk => chunk.SourceId == sourceId)
+            .ToListAsync(cancellationToken);
+
+        if (chunks.Count == 0)
+        {
+            return;
+        }
+
+        var uploadMetadata = ParseUploadMetadata(metadata);
+
+        foreach (var chunk in chunks)
+        {
+            chunk.Metadata = MergeChunkMetadata(chunk.Metadata, uploadMetadata);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<UploadIngestionResponse?> GetByUploadIdAsync(Guid uploadId, CancellationToken cancellationToken)
@@ -108,5 +138,55 @@ public class DataIngestionService(
             Summary = summary,
             Chunks = chunks
         };
+    }
+
+    private static JsonElement? ParseUploadMetadata(string? metadata)
+    {
+        if (string.IsNullOrWhiteSpace(metadata))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var jsonDocument = JsonDocument.Parse(metadata);
+            return jsonDocument.RootElement.Clone();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string? MergeChunkMetadata(string? existingMetadata, JsonElement? uploadMetadata)
+    {
+        JsonObject metadataObject;
+
+        if (string.IsNullOrWhiteSpace(existingMetadata))
+        {
+            metadataObject = new JsonObject();
+        }
+        else
+        {
+            try
+            {
+                metadataObject = JsonNode.Parse(existingMetadata) as JsonObject ?? new JsonObject();
+            }
+            catch (JsonException)
+            {
+                metadataObject = new JsonObject();
+            }
+        }
+
+        if (uploadMetadata is null)
+        {
+            metadataObject.Remove("upload_metadata");
+        }
+        else
+        {
+            metadataObject["upload_metadata"] = JsonNode.Parse(uploadMetadata.Value.GetRawText());
+        }
+
+        return metadataObject.ToJsonString();
     }
 }

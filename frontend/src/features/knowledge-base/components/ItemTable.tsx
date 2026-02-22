@@ -26,7 +26,7 @@ export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
             <TableHead className="w-[50px]">Type</TableHead>
             <TableHead className="w-[200px]">Name</TableHead>
             <TableHead className="hidden md:table-cell">Content Preview</TableHead>
-            <TableHead className="hidden sm:table-cell w-[150px]">Tags</TableHead>
+            <TableHead className="hidden sm:table-cell w-[220px]">Metadata</TableHead>
             <TableHead className="w-[120px]">Updated</TableHead>
             <TableHead className="w-[100px] text-right">Actions</TableHead>
           </TableRow>
@@ -35,13 +35,18 @@ export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
           {items.map((item) => {
             const Icon = item.itemType === 'Note' ? FileText : File
 
-            const tagsList = (() => {
-              if (!item.tags) return []
+            const metadataEntries = (() => {
+              if (!item.metadata) return [] as string[]
               try {
-                const parsed = JSON.parse(item.tags)
-                return Array.isArray(parsed) ? parsed : [String(parsed)]
+                const parsed = JSON.parse(item.metadata) as unknown
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                  return Object.entries(parsed as Record<string, unknown>).map(
+                    ([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`
+                  )
+                }
+                return [JSON.stringify(parsed)]
               } catch {
-                return item.tags.split(',').map(t => t.trim()).filter(Boolean)
+                return [item.metadata]
               }
             })()
 
@@ -65,13 +70,13 @@ export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
                   <div className="flex flex-wrap gap-1">
-                    {tagsList.slice(0, 3).map((tag: string) => (
-                      <span key={tag} className="text-[10px] bg-secondary text-secondary-foreground px-1 rounded truncate max-w-[80px]">
-                        {tag}
+                    {metadataEntries.slice(0, 2).map((entry: string) => (
+                      <span key={entry} className="text-[10px] bg-secondary text-secondary-foreground px-1 rounded truncate max-w-[160px]" title={entry}>
+                        {entry}
                       </span>
                     ))}
-                    {tagsList.length > 3 && (
-                      <span className="text-[10px] text-muted-foreground">+{tagsList.length - 3}</span>
+                    {metadataEntries.length > 2 && (
+                      <span className="text-[10px] text-muted-foreground">+{metadataEntries.length - 2}</span>
                     )}
                   </div>
                 </TableCell>

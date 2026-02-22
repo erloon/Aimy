@@ -30,7 +30,7 @@ export function useUpdateMetadata(options: UseUpdateMetadataOptions = {}) {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: ({ id, metadata }: { id: string; metadata: Record<string, string> }) => 
+    mutationFn: ({ id, metadata }: { id: string; metadata: Record<string, unknown> }) => 
       updateMetadata(id, metadata),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['files'] })

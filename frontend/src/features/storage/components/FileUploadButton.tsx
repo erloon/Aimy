@@ -12,7 +12,7 @@ import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
 interface FileUploadButtonProps {
-    onUploadComplete?: (response: any) => void
+    onUploadComplete?: (response: unknown) => void
     buttonProps?: ButtonProps
     className?: string
     children?: React.ReactNode

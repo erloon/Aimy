@@ -29,27 +29,22 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
   
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
-  const [tags, setTags] = useState("")
+  const [metadataText, setMetadataText] = useState("{}")
 
   useEffect(() => {
     if (open) {
       setTitle(item?.title || "")
       setContent(item?.content || "")
-      // Parse JSON tags to comma-separated string for display
-      let initialTags = ""
-      if (item?.tags) {
+      let initialMetadata = "{}"
+      if (item?.metadata) {
         try {
-          const parsed = JSON.parse(item.tags)
-          if (Array.isArray(parsed)) {
-            initialTags = parsed.join(", ")
-          } else {
-            initialTags = item.tags
-          }
+          const parsed = JSON.parse(item.metadata)
+          initialMetadata = JSON.stringify(parsed, null, 2)
         } catch {
-          initialTags = item.tags
+          initialMetadata = item.metadata
         }
       }
-      setTags(initialTags)
+      setMetadataText(initialMetadata)
     } else {
       // Reset form when closed if needed, but useEffect above handles it on open
     }
@@ -58,9 +53,16 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Convert comma-separated string to JSON array string
-    const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean)
-    const jsonTags = JSON.stringify(tagsArray)
+    let normalizedMetadata = "{}"
+    if (metadataText.trim()) {
+      try {
+        const parsed = JSON.parse(metadataText)
+        normalizedMetadata = JSON.stringify(parsed)
+      } catch {
+        console.error("Metadata must be valid JSON")
+        return
+      }
+    }
 
     try {
       if (item) {
@@ -69,7 +71,7 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
           request: {
             title,
             content,
-            tags: jsonTags,
+            metadata: normalizedMetadata,
             folderId: item.folderId 
           }
         })
@@ -78,7 +80,7 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
           folderId,
           title,
           content,
-          tags: jsonTags,
+          metadata: normalizedMetadata,
         })
       }
       onSuccess?.()
@@ -111,12 +113,13 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
-            <Input 
-              id="tags" 
-              value={tags} 
-              onChange={(e) => setTags(e.target.value)} 
-              placeholder="comma, separated, tags"
+            <Label htmlFor="metadata">Metadata (JSON)</Label>
+            <Textarea 
+              id="metadata" 
+              value={metadataText} 
+              onChange={(e) => setMetadataText(e.target.value)} 
+              placeholder='{"field-1":"value","field-2":["value1","value2"]}'
+              className="min-h-[120px] font-mono resize-y"
             />
           </div>
           <div className="space-y-2">

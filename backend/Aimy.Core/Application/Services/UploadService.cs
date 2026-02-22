@@ -128,6 +128,15 @@ public class UploadService(
 
         upload.Metadata = metadata;
         await uploadRepository.UpdateAsync(upload, ct);
+        await dataIngestionService.UpdateMetadataByUploadIdAsync(upload.Id, metadata, ct);
+
+        var linkedItems = await knowledgeItemRepository.GetBySourceUploadIdAsync(upload.Id, ct) ?? [];
+        foreach (var linkedItem in linkedItems)
+        {
+            linkedItem.Metadata = metadata;
+            linkedItem.UpdatedAt = DateTime.UtcNow;
+            await knowledgeItemRepository.UpdateAsync(linkedItem, ct);
+        }
 
         return await BuildUploadFileResponseAsync(upload, ct);
     }

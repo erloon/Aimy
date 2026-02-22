@@ -4,6 +4,7 @@ using Aimy.Core.Application.Interfaces.Auth;
 using Aimy.Core.Application.Interfaces.Ingestion;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Application.Interfaces.Upload;
+using Aimy.Core.Application.DTOs.Upload;
 using Aimy.Core.Application.Services;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;
@@ -22,6 +23,7 @@ public class KnowledgeItemServiceTests
     private Mock<IStorageService> _storageServiceMock = null!;
     private Mock<ICurrentUserService> _currentUserServiceMock = null!;
     private KnowledgeItemService _sut = null!;
+    private Mock<IUploadQueueWriter> _queueWriterMock = null!;
 
     [SetUp]
     public void Setup()
@@ -33,6 +35,7 @@ public class KnowledgeItemServiceTests
         _dataIngestionServiceMock = new Mock<IDataIngestionService>();
         _storageServiceMock = new Mock<IStorageService>();
         _currentUserServiceMock = new Mock<ICurrentUserService>();
+        _queueWriterMock = new Mock<IUploadQueueWriter>();
         _sut = new KnowledgeItemService(
             _kbRepositoryMock.Object,
             _folderRepositoryMock.Object,
@@ -40,10 +43,14 @@ public class KnowledgeItemServiceTests
             _uploadRepositoryMock.Object,
             _dataIngestionServiceMock.Object,
             _storageServiceMock.Object,
-            _currentUserServiceMock.Object);
+            _currentUserServiceMock.Object,
+            _queueWriterMock.Object);
 
         _dataIngestionServiceMock
             .Setup(s => s.UpdateMetadataByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _queueWriterMock
+            .Setup(q => q.WriteAsync(It.IsAny<UploadToProcess>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
     }
 
@@ -124,6 +131,7 @@ public class KnowledgeItemServiceTests
             It.IsAny<CancellationToken>()), Times.Once);
         _itemRepositoryMock.Verify(r => r.AddAsync(It.IsAny<KnowledgeItem>(), It.IsAny<CancellationToken>()), Times.Once);
         streamPositionDuringUpload.Should().Be(0);
+        _queueWriterMock.Verify(q => q.WriteAsync(It.Is<UploadToProcess>(u => u.UploadId == uploadId), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
@@ -529,6 +537,8 @@ public class KnowledgeItemServiceTests
                 && u.StoragePath == newStoragePath
                 && u.Metadata == "[\"updated\"]"),
             It.IsAny<CancellationToken>()), Times.Once);
+        _dataIngestionServiceMock.Verify(s => s.DeleteByUploadIdAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
+        _queueWriterMock.Verify(q => q.WriteAsync(It.Is<UploadToProcess>(u => u.UploadId == uploadId), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]

@@ -2,6 +2,7 @@ using Aimy.Core.Application.Interfaces.Auth;
 using Aimy.Core.Application.Interfaces.Ingestion;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Application.Interfaces.Upload;
+using Aimy.Core.Application.DTOs.Upload;
 
 namespace Aimy.Core.Application.Services;
 
@@ -16,7 +17,8 @@ public class KnowledgeItemService(
     IUploadRepository uploadRepository,
     IDataIngestionService dataIngestionService,
     IStorageService storageService,
-    ICurrentUserService currentUserService) : IKnowledgeItemService
+    ICurrentUserService currentUserService,
+    IUploadQueueWriter queueWriter) : IKnowledgeItemService
 {
     public async Task<ItemResponse> CreateNoteAsync(CreateNoteRequest request, CancellationToken ct)
     {
@@ -54,6 +56,7 @@ public class KnowledgeItemService(
         };
 
         var savedUpload = await uploadRepository.AddAsync(upload, ct);
+        await queueWriter.WriteAsync(new UploadToProcess(savedUpload.Id), ct);
 
         // Create knowledge item linked to upload
         // Note: If this fails, we keep the upload (no rollback) as per plan
@@ -164,6 +167,8 @@ public class KnowledgeItemService(
             sourceUpload.StoragePath = newStoragePath;
             sourceUpload.FileSizeBytes = contentBytes.Length;
             sourceUpload.ContentType = "text/markdown";
+            await dataIngestionService.DeleteByUploadIdAsync(sourceUpload.Id, ct);
+            await queueWriter.WriteAsync(new UploadToProcess(sourceUpload.Id), ct);
         }
 
         if (sourceUpload is not null && metadataChanged)

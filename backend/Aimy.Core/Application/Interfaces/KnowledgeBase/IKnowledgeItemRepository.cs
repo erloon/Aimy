@@ -18,6 +18,7 @@ public interface IKnowledgeItemRepository
         int page,
         int pageSize,
         CancellationToken ct);
+    Task<bool> ExistsBySourceUploadIdAsync(Guid sourceUploadId, CancellationToken ct);
     Task UpdateAsync(KnowledgeItem item, CancellationToken ct);
     Task DeleteAsync(Guid id, CancellationToken ct);
 }

@@ -1,10 +1,8 @@
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
-using Aimy.Core.Application.Interfaces.Upload;
 
 namespace Aimy.Infrastructure.Repositories;
 
 using Aimy.Core.Application.DTOs;
-using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Domain.Entities;
 using Aimy.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -95,6 +93,12 @@ public class KnowledgeItemRepository(ApplicationDbContext context) : IKnowledgeI
             PageSize = pageSize,
             TotalCount = totalCount
         };
+    }
+
+    public async Task<bool> ExistsBySourceUploadIdAsync(Guid sourceUploadId, CancellationToken ct)
+    {
+        return await context.KnowledgeItems
+            .AnyAsync(ki => ki.SourceUploadId == sourceUploadId, ct);
     }
 
     public async Task UpdateAsync(KnowledgeItem item, CancellationToken ct)

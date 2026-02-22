@@ -1,8 +1,6 @@
 using Aimy.API.Models;
-using Aimy.API.Validators;
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.DTOs.Upload;
-using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Application.Interfaces.Upload;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -57,6 +55,7 @@ public static class UploadEndpoints
             .WithSummary("Delete a file by ID")
             .WithDescription("Permanently deletes a file from storage using its unique identifier.")
             .Produces(StatusCodes.Status204NoContent)
+            .Produces<ErrorResponse>(StatusCodes.Status400BadRequest)
             .Produces<ErrorResponse>(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound)
             .Produces(StatusCodes.Status500InternalServerError);
@@ -275,7 +274,7 @@ public static class UploadEndpoints
     /// 
     ///     DELETE /uploads/3fa85f64-5717-4562-b3fc-2c963f66afa6
     /// </remarks>
-    private static async Task<Results<NoContent, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> DeleteFile(
+    private static async Task<Results<NoContent, BadRequest<ErrorResponse>, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> DeleteFile(
         Guid id,
         IUploadService uploadService,
         CancellationToken ct)
@@ -292,6 +291,10 @@ public static class UploadEndpoints
         catch (KeyNotFoundException)
         {
             return TypedResults.NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.BadRequest(new ErrorResponse { Error = ex.Message });
         }
         catch (Exception ex)
         {

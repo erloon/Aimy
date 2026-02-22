@@ -1,7 +1,7 @@
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.DTOs.KnowledgeBase;
-using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Application.Interfaces.Auth;
+using Aimy.Core.Application.Interfaces.Ingestion;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Application.Services;
@@ -18,6 +18,7 @@ public class KnowledgeItemServiceTests
     private Mock<IFolderRepository> _folderRepositoryMock = null!;
     private Mock<IKnowledgeItemRepository> _itemRepositoryMock = null!;
     private Mock<IUploadRepository> _uploadRepositoryMock = null!;
+    private Mock<IDataIngestionService> _dataIngestionServiceMock = null!;
     private Mock<IStorageService> _storageServiceMock = null!;
     private Mock<ICurrentUserService> _currentUserServiceMock = null!;
     private KnowledgeItemService _sut = null!;
@@ -29,6 +30,7 @@ public class KnowledgeItemServiceTests
         _folderRepositoryMock = new Mock<IFolderRepository>();
         _itemRepositoryMock = new Mock<IKnowledgeItemRepository>();
         _uploadRepositoryMock = new Mock<IUploadRepository>();
+        _dataIngestionServiceMock = new Mock<IDataIngestionService>();
         _storageServiceMock = new Mock<IStorageService>();
         _currentUserServiceMock = new Mock<ICurrentUserService>();
         _sut = new KnowledgeItemService(
@@ -36,8 +38,13 @@ public class KnowledgeItemServiceTests
             _folderRepositoryMock.Object,
             _itemRepositoryMock.Object,
             _uploadRepositoryMock.Object,
+            _dataIngestionServiceMock.Object,
             _storageServiceMock.Object,
             _currentUserServiceMock.Object);
+
+        _dataIngestionServiceMock
+            .Setup(s => s.UpdateMetadataByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
     }
 
     #region CreateNoteAsync Tests
@@ -59,7 +66,7 @@ public class KnowledgeItemServiceTests
             FolderId = folderId,
             Title = "Test Note",
             Content = "# Test Content",
-            Tags = "[\"test\"]"
+            Metadata = "[\"test\"]"
         };
 
         _currentUserServiceMock
@@ -106,7 +113,7 @@ public class KnowledgeItemServiceTests
         result.Id.Should().Be(itemId);
         result.Title.Should().Be("Test Note");
         result.Content.Should().Be("# Test Content");
-        result.Tags.Should().Be("[\"test\"]");
+        result.Metadata.Should().Be("[\"test\"]");
         result.ItemType.Should().Be(KnowledgeItemType.Note);
         result.SourceUploadId.Should().Be(uploadId);
 
@@ -216,7 +223,7 @@ public class KnowledgeItemServiceTests
             FolderId = folderId,
             UploadId = uploadId,
             Title = "Custom Title",
-            Tags = "[\"document\"]"
+            Metadata = "[\"document\"]"
         };
 
         _currentUserServiceMock
@@ -255,13 +262,14 @@ public class KnowledgeItemServiceTests
         result.Id.Should().Be(itemId);
         result.Title.Should().Be("Custom Title");
         result.ItemType.Should().Be(KnowledgeItemType.File);
-        result.Tags.Should().Be("[\"document\"]");
+        result.Metadata.Should().Be("[\"document\"]");
         result.SourceUploadId.Should().Be(uploadId);
 
         _itemRepositoryMock.Verify(r => r.AddAsync(It.IsAny<KnowledgeItem>(), It.IsAny<CancellationToken>()), Times.Once);
         _uploadRepositoryMock.Verify(r => r.UpdateAsync(
             It.Is<Upload>(u => u.Id == uploadId && u.Metadata == "[\"document\"]"),
             It.IsAny<CancellationToken>()), Times.Once);
+        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(uploadId, "[\"document\"]", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
@@ -310,8 +318,9 @@ public class KnowledgeItemServiceTests
 
         // Assert
         result.Title.Should().Be("document.pdf");
-        result.Tags.Should().Be("[\"from-upload\"]");
+        result.Metadata.Should().Be("[\"from-upload\"]");
         _uploadRepositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()), Times.Never);
+        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]
@@ -414,7 +423,7 @@ public class KnowledgeItemServiceTests
         {
             Title = "Updated Title",
             Content = "Updated Content",
-            Tags = "[\"updated\"]"
+            Metadata = "[\"updated\"]"
         };
 
         var kb = new KnowledgeBase { Id = kbId, UserId = userId };
@@ -435,7 +444,7 @@ public class KnowledgeItemServiceTests
         // Assert
         result.Title.Should().Be("Updated Title");
         result.Content.Should().Be("Updated Content");
-        result.Tags.Should().Be("[\"updated\"]");
+        result.Metadata.Should().Be("[\"updated\"]");
 
         _itemRepositoryMock.Verify(r => r.UpdateAsync(It.Is<KnowledgeItem>(i => i.Title == "Updated Title"), It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -456,7 +465,7 @@ public class KnowledgeItemServiceTests
         {
             Title = "Updated Title",
             Content = "Updated Content",
-            Tags = "[\"updated\"]"
+            Metadata = "[\"updated\"]"
         };
 
         var kb = new KnowledgeBase { Id = kbId, UserId = userId };
@@ -510,7 +519,7 @@ public class KnowledgeItemServiceTests
         // Assert
         result.Title.Should().Be("Updated Title");
         result.Content.Should().Be("Updated Content");
-        result.Tags.Should().Be("[\"updated\"]");
+        result.Metadata.Should().Be("[\"updated\"]");
 
         _storageServiceMock.Verify(s => s.UploadAsync(userId, "Updated Title.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()), Times.Once);
         _storageServiceMock.Verify(s => s.DeleteAsync(oldStoragePath, It.IsAny<CancellationToken>()), Times.Once);
@@ -534,7 +543,7 @@ public class KnowledgeItemServiceTests
 
         var request = new UpdateItemRequest
         {
-            Tags = "[\"file-updated\"]"
+            Metadata = "[\"file-updated\"]"
         };
 
         var kb = new KnowledgeBase { Id = kbId, UserId = userId };
@@ -576,10 +585,11 @@ public class KnowledgeItemServiceTests
         var result = await _sut.UpdateAsync(itemId, request, CancellationToken.None);
 
         // Assert
-        result.Tags.Should().Be("[\"file-updated\"]");
+        result.Metadata.Should().Be("[\"file-updated\"]");
         _uploadRepositoryMock.Verify(r => r.UpdateAsync(
             It.Is<Upload>(u => u.Id == uploadId && u.Metadata == "[\"file-updated\"]"),
             It.IsAny<CancellationToken>()), Times.Once);
+        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(uploadId, "[\"file-updated\"]", It.IsAny<CancellationToken>()), Times.Once);
         _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _storageServiceMock.Verify(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -931,7 +941,7 @@ public class KnowledgeItemServiceTests
         var request = new ItemSearchRequest
         {
             Search = "test",
-            Tags = "[\"tag1\"]",
+            Metadata = "[\"tag1\"]",
             Type = KnowledgeItemType.Note,
             Page = 1,
             PageSize = 10

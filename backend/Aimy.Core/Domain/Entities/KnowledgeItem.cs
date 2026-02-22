@@ -12,7 +12,7 @@ public class KnowledgeItem
     public required string Title { get; set; }
     public KnowledgeItemType ItemType { get; set; }
     public string? Content { get; set; }
-    public string? Tags { get; set; }
+    public string? Metadata { get; set; }
     public Guid? SourceUploadId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

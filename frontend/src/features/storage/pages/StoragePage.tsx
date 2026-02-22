@@ -9,6 +9,7 @@ import { UploadProgress } from '../components/UploadProgress'
 import { FilesTable } from '../components/FilesTable'
 import { FileActionsMenu } from '../components/FileActionsMenu'
 import { MetadataSheet } from '../components/MetadataSheet'
+import { FilePreviewSheet } from '@/components/shared/FilePreviewSheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -26,6 +27,7 @@ export function StoragePage() {
   const [selectedFile, setSelectedFile] = useState<NormalizedFileItem | null>(null)
   const [showMetadataSheet, setShowMetadataSheet] = useState(false)
   const [fileToDelete, setFileToDelete] = useState<NormalizedFileItem | null>(null)
+  const [previewFile, setPreviewFile] = useState<NormalizedFileItem | null>(null)
 
   const { toast } = useToast()
 
@@ -113,6 +115,11 @@ export function StoragePage() {
     setFileToDelete(file)
   }
 
+
+  // Handle view/preview
+  const handleView = (file: NormalizedFileItem) => {
+    setPreviewFile(file)
+  }
   // Confirm delete
   const handleConfirmDelete = () => {
     if (fileToDelete) {
@@ -121,7 +128,7 @@ export function StoragePage() {
   }
 
   // Handle metadata save
-  const handleSaveMetadata = (fileId: string, metadata: Record<string, string>) => {
+  const handleSaveMetadata = (fileId: string, metadata: Record<string, unknown>) => {
     updateMetadataMutation.mutate({ id: fileId, metadata })
   }
 
@@ -129,6 +136,7 @@ export function StoragePage() {
   const renderActions = (file: NormalizedFileItem) => (
     <FileActionsMenu
       file={file}
+      onView={handleView}
       onDownload={handleDownload}
       onEditDetails={handleEditDetails}
       onDelete={handleDeleteRequest}
@@ -230,6 +238,15 @@ export function StoragePage() {
         isSaving={updateMetadataMutation.isPending}
       />
 
+
+      {/* File Preview Sheet */}
+      <FilePreviewSheet
+        open={!!previewFile}
+        onOpenChange={(open) => !open && setPreviewFile(null)}
+        fileId={previewFile?.id ?? null}
+        fileName={previewFile?.filename ?? null}
+        contentType={previewFile?.contentType}
+      />
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
         <DialogContent>

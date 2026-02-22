@@ -8,16 +8,17 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { KnowledgeItem } from "../types"
-import { FileText, File, Pencil, Trash2 } from "lucide-react"
+import { FileText, File, Pencil, Trash2, Eye } from "lucide-react"
 
 
 interface ItemTableProps {
   items: KnowledgeItem[]
   onEdit?: (item: KnowledgeItem) => void
   onDelete?: (item: KnowledgeItem) => void
+  onViewSource?: (item: KnowledgeItem) => void
 }
 
-export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
+export function ItemTable({ items, onEdit, onDelete, onViewSource }: ItemTableProps) {
   return (
     <div className="rounded-md border">
       <Table>
@@ -26,7 +27,7 @@ export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
             <TableHead className="w-[50px]">Type</TableHead>
             <TableHead className="w-[200px]">Name</TableHead>
             <TableHead className="hidden md:table-cell">Content Preview</TableHead>
-            <TableHead className="hidden sm:table-cell w-[150px]">Tags</TableHead>
+            <TableHead className="hidden sm:table-cell w-[220px]">Metadata</TableHead>
             <TableHead className="w-[120px]">Updated</TableHead>
             <TableHead className="w-[100px] text-right">Actions</TableHead>
           </TableRow>
@@ -35,13 +36,18 @@ export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
           {items.map((item) => {
             const Icon = item.itemType === 'Note' ? FileText : File
 
-            const tagsList = (() => {
-              if (!item.tags) return []
+            const metadataEntries = (() => {
+              if (!item.metadata) return [] as string[]
               try {
-                const parsed = JSON.parse(item.tags)
-                return Array.isArray(parsed) ? parsed : [String(parsed)]
+                const parsed = JSON.parse(item.metadata) as unknown
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                  return Object.entries(parsed as Record<string, unknown>).map(
+                    ([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`
+                  )
+                }
+                return [JSON.stringify(parsed)]
               } catch {
-                return item.tags.split(',').map(t => t.trim()).filter(Boolean)
+                return [item.metadata]
               }
             })()
 
@@ -65,13 +71,13 @@ export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
                   <div className="flex flex-wrap gap-1">
-                    {tagsList.slice(0, 3).map((tag: string) => (
-                      <span key={tag} className="text-[10px] bg-secondary text-secondary-foreground px-1 rounded truncate max-w-[80px]">
-                        {tag}
+                    {metadataEntries.slice(0, 2).map((entry: string) => (
+                      <span key={entry} className="text-[10px] bg-secondary text-secondary-foreground px-1 rounded truncate max-w-[160px]" title={entry}>
+                        {entry}
                       </span>
                     ))}
-                    {tagsList.length > 3 && (
-                      <span className="text-[10px] text-muted-foreground">+{tagsList.length - 3}</span>
+                    {metadataEntries.length > 2 && (
+                      <span className="text-[10px] text-muted-foreground">+{metadataEntries.length - 2}</span>
                     )}
                   </div>
                 </TableCell>
@@ -80,6 +86,12 @@ export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                    {item.sourceUploadId && onViewSource && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onViewSource(item)}>
+                        <Eye className="h-4 w-4" />
+                        <span className="sr-only">Source View</span>
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit?.(item)}>
                       <Pencil className="h-4 w-4" />
                       <span className="sr-only">Edit</span>

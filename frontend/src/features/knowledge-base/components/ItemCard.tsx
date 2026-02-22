@@ -1,26 +1,32 @@
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { KnowledgeItem } from "../types"
-import { FileText, File, Pencil, Trash2 } from "lucide-react"
+import { FileText, File, Pencil, Trash2, Eye } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ItemCardProps {
   item: KnowledgeItem
   onEdit?: () => void
   onDelete?: () => void
+  onViewSource?: () => void
   className?: string
 }
 
-export function ItemCard({ item, onEdit, onDelete, className }: ItemCardProps) {
+export function ItemCard({ item, onEdit, onDelete, onViewSource, className }: ItemCardProps) {
   const Icon = item.itemType === 'Note' ? FileText : File
 
-  const tagsList = (() => {
-    if (!item.tags) return []
+  const metadataEntries = (() => {
+    if (!item.metadata) return [] as string[]
     try {
-      const parsed = JSON.parse(item.tags)
-      return Array.isArray(parsed) ? parsed : [String(parsed)]
+      const parsed = JSON.parse(item.metadata) as unknown
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return Object.entries(parsed as Record<string, unknown>).map(
+          ([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`
+        )
+      }
+      return [JSON.stringify(parsed)]
     } catch {
-      return item.tags.split(',').map(t => t.trim()).filter(Boolean)
+      return [item.metadata]
     }
   })()
 
@@ -56,13 +62,16 @@ export function ItemCard({ item, onEdit, onDelete, className }: ItemCardProps) {
             </span>
           </div>
         )}
-        {tagsList.length > 0 && (
+        {metadataEntries.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
-            {tagsList.map((tag: string) => (
-              <span key={tag} className="text-[10px] bg-secondary text-secondary-foreground px-1 rounded">
-                {tag}
+            {metadataEntries.slice(0, 3).map((entry: string) => (
+              <span key={entry} className="text-[10px] bg-secondary text-secondary-foreground px-1 rounded truncate max-w-[180px]" title={entry}>
+                {entry}
               </span>
             ))}
+            {metadataEntries.length > 3 && (
+              <span className="text-[10px] text-muted-foreground">+{metadataEntries.length - 3}</span>
+            )}
           </div>
         )}
       </CardContent>
@@ -71,6 +80,12 @@ export function ItemCard({ item, onEdit, onDelete, className }: ItemCardProps) {
           {new Date(item.updatedAt).toLocaleDateString()}
         </div>
         <div className="flex gap-1">
+          {item.sourceUploadId && onViewSource && (
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onViewSource}>
+              <Eye className="h-3 w-3" />
+              <span className="sr-only">Source View</span>
+            </Button>
+          )}
           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onEdit}>
             <Pencil className="h-3 w-3" />
             <span className="sr-only">Edit</span>

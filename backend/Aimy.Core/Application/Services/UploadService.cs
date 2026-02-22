@@ -1,5 +1,7 @@
 using Aimy.Core.Application.DTOs.Upload;
 using Aimy.Core.Application.Interfaces.Auth;
+using Aimy.Core.Application.Interfaces.Ingestion;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Application.Interfaces.Upload;
 
 namespace Aimy.Core.Application.Services;
@@ -11,7 +13,9 @@ public class UploadService(
     IStorageService storageService,
     IUploadRepository uploadRepository,
     ICurrentUserService currentUserService,
-    IUploadQueueWriter queueWriter)
+    IUploadQueueWriter queueWriter,
+    IKnowledgeItemRepository knowledgeItemRepository,
+    IDataIngestionService dataIngestionService)
     : IUploadService
 {
     public async Task<UploadFileResponse> UploadAsync(
@@ -48,16 +52,7 @@ public class UploadService(
 
         var savedUpload = await uploadRepository.AddAsync(upload, ct);  
         await queueWriter.WriteAsync(new UploadToProcess(savedUpload.Id), ct);
-        return new UploadFileResponse
-        {
-            Id = savedUpload.Id,
-            FileName = savedUpload.FileName,
-            ContentType = savedUpload.ContentType,
-            Link = savedUpload.StoragePath,
-            SizeBytes = savedUpload.FileSizeBytes,
-            UploadedAt = savedUpload.DateUploaded,
-            Metadata = savedUpload.Metadata
-        };
+        return await BuildUploadFileResponseAsync(savedUpload, ct);
     }
 
     public async Task<PagedResult<UploadFileResponse>> ListAsync(int page, int pageSize, CancellationToken ct)
@@ -68,9 +63,15 @@ public class UploadService(
 
         var pagedUploads = await uploadRepository.GetPagedAsync(userId.Value, page, pageSize, ct);
 
+        var responses = new List<UploadFileResponse>(pagedUploads.Items.Count);
+        foreach (var upload in pagedUploads.Items)
+        {
+            responses.Add(await BuildUploadFileResponseAsync(upload, ct));
+        }
+
         return new PagedResult<UploadFileResponse>
         {
-            Items = pagedUploads.Items.Select(MapToUploadFileResponse).ToList(),
+            Items = responses,
             Page = pagedUploads.Page,
             PageSize = pagedUploads.PageSize,
             TotalCount = pagedUploads.TotalCount
@@ -104,6 +105,11 @@ public class UploadService(
         if (upload.UserId != userId.Value)
             throw new UnauthorizedAccessException("User does not have access to this file");
 
+        var assignedToKnowledgeBase = await knowledgeItemRepository.ExistsBySourceUploadIdAsync(id, ct);
+        if (assignedToKnowledgeBase)
+            throw new InvalidOperationException("Cannot delete file assigned to knowledge base");
+
+        await dataIngestionService.DeleteByUploadIdAsync(id, ct);
         await storageService.DeleteAsync(upload.StoragePath, ct);
         await uploadRepository.DeleteAsync(id, ct);
     }
@@ -122,12 +128,23 @@ public class UploadService(
 
         upload.Metadata = metadata;
         await uploadRepository.UpdateAsync(upload, ct);
+        await dataIngestionService.UpdateMetadataByUploadIdAsync(upload.Id, metadata, ct);
 
-        return MapToUploadFileResponse(upload);
+        var linkedItems = await knowledgeItemRepository.GetBySourceUploadIdAsync(upload.Id, ct) ?? [];
+        foreach (var linkedItem in linkedItems)
+        {
+            linkedItem.Metadata = metadata;
+            linkedItem.UpdatedAt = DateTime.UtcNow;
+            await knowledgeItemRepository.UpdateAsync(linkedItem, ct);
+        }
+
+        return await BuildUploadFileResponseAsync(upload, ct);
     }
 
-    private static UploadFileResponse MapToUploadFileResponse(Upload upload)
+    private async Task<UploadFileResponse> BuildUploadFileResponseAsync(Upload upload, CancellationToken ct)
     {
+        var ingestion = await dataIngestionService.GetByUploadIdAsync(upload.Id, ct);
+
         return new UploadFileResponse
         {
             Id = upload.Id,
@@ -136,7 +153,8 @@ public class UploadService(
             Link = upload.StoragePath,
             SizeBytes = upload.FileSizeBytes,
             UploadedAt = upload.DateUploaded,
-            Metadata = upload.Metadata
+            Metadata = upload.Metadata,
+            Ingestion = ingestion
         };
     }
 

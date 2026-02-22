@@ -1,4 +1,4 @@
-import { MoreHorizontal, Download, Pencil, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Download, Pencil, Trash2, Eye } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,9 +13,10 @@ interface FileActionsMenuProps {
   onDownload: (file: NormalizedFileItem) => void
   onEditDetails: (file: NormalizedFileItem) => void
   onDelete: (file: NormalizedFileItem) => void
+  onView?: (file: NormalizedFileItem) => void
 }
 
-export function FileActionsMenu({ file, onDownload, onEditDetails, onDelete }: FileActionsMenuProps) {
+export function FileActionsMenu({ file, onDownload, onEditDetails, onDelete, onView }: FileActionsMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -25,6 +26,12 @@ export function FileActionsMenu({ file, onDownload, onEditDetails, onDelete }: F
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {onView && (
+          <DropdownMenuItem onClick={() => onView(file)}>
+            <Eye className="mr-2 h-4 w-4" />
+            View
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => onDownload(file)}>
           <Download className="mr-2 h-4 w-4" />
           Download

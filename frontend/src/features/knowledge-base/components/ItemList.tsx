@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button"
 interface ItemListProps {
   folderId?: string | null
   onEditItem?: (item: KnowledgeItem) => void
+  onViewSource?: (item: KnowledgeItem) => void
 }
 
-export function ItemList({ folderId, onEditItem }: ItemListProps) {
+export function ItemList({ folderId, onEditItem, onViewSource }: ItemListProps) {
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const { data, isLoading, isError } = useItems({
@@ -100,6 +101,7 @@ export function ItemList({ folderId, onEditItem }: ItemListProps) {
                   item={item}
                   onEdit={() => onEditItem?.(item)}
                   onDelete={() => handleDelete(item)}
+                  onViewSource={item.sourceUploadId ? () => onViewSource?.(item) : undefined}
                 />
               ))}
             </div>
@@ -109,6 +111,7 @@ export function ItemList({ folderId, onEditItem }: ItemListProps) {
                 items={data?.items || []}
                 onEdit={onEditItem}
                 onDelete={handleDelete}
+                onViewSource={onViewSource}
               />
             </div>
           )

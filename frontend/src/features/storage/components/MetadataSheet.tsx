@@ -18,7 +18,7 @@ interface MetadataSheetProps {
   file: NormalizedFileItem | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSave: (fileId: string, metadata: Record<string, string>) => void
+  onSave: (fileId: string, metadata: Record<string, unknown>) => void
   isSaving?: boolean
 }
 
@@ -33,18 +33,28 @@ function parseMetadata(metadata: string | null): KeyValue[] {
     const parsed = JSON.parse(metadata)
     return Object.entries(parsed).map(([key, value]) => ({
       key,
-      value: String(value)
+      value: typeof value === 'string' ? value : JSON.stringify(value)
     }))
   } catch {
     return []
   }
 }
 
-function serializeMetadata(entries: KeyValue[]): Record<string, string> {
-  const result: Record<string, string> = {}
+function serializeMetadata(entries: KeyValue[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
   entries.forEach(entry => {
     if (entry.key.trim()) {
-      result[entry.key.trim()] = entry.value
+      const trimmedValue = entry.value.trim()
+      if (!trimmedValue) {
+        result[entry.key.trim()] = ''
+        return
+      }
+
+      try {
+        result[entry.key.trim()] = JSON.parse(trimmedValue)
+      } catch {
+        result[entry.key.trim()] = entry.value
+      }
     }
   })
   return result

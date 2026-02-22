@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { FileSelector } from "@/features/storage/components/FileSelector"
 import { useCreateItemFromUpload } from "../hooks/useItems"
 import { Loader2 } from "lucide-react"
@@ -27,7 +28,7 @@ export function FileLinkDialog({ open, onOpenChange, folderId, onSuccess }: File
   
   const [selectedFile, setSelectedFile] = useState<NormalizedFileItem | null>(null)
   const [title, setTitle] = useState("")
-  const [tags, setTags] = useState("")
+  const [metadataText, setMetadataText] = useState("{}")
 
   const handleSelectionChange = (files: NormalizedFileItem[]) => {
     if (files.length > 0) {
@@ -36,8 +37,19 @@ export function FileLinkDialog({ open, onOpenChange, folderId, onSuccess }: File
       if (!title) {
         setTitle(file.filename)
       }
+      if (file.metadata) {
+        try {
+          const parsed = JSON.parse(file.metadata)
+          setMetadataText(JSON.stringify(parsed, null, 2))
+        } catch {
+          setMetadataText(file.metadata)
+        }
+      } else {
+        setMetadataText("{}")
+      }
     } else {
       setSelectedFile(null)
+      setMetadataText("{}")
     }
   }
 
@@ -45,23 +57,30 @@ export function FileLinkDialog({ open, onOpenChange, folderId, onSuccess }: File
     e.preventDefault()
     if (!selectedFile) return
 
-    // Convert comma-separated string to JSON array string
-    const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean)
-    const jsonTags = JSON.stringify(tagsArray)
+    let normalizedMetadata = "{}"
+    if (metadataText.trim()) {
+      try {
+        const parsed = JSON.parse(metadataText)
+        normalizedMetadata = JSON.stringify(parsed)
+      } catch {
+        console.error("Metadata must be valid JSON")
+        return
+      }
+    }
 
     try {
       await createItem.mutateAsync({
         folderId,
         uploadId: selectedFile.id,
         title: title || selectedFile.filename,
-        tags: jsonTags
+        metadata: normalizedMetadata
       })
       
       onSuccess?.()
       onOpenChange(false)
       setSelectedFile(null)
       setTitle("")
-      setTags("")
+      setMetadataText("{}")
     } catch (error) {
       console.error("Failed to link file:", error)
     }
@@ -101,12 +120,13 @@ export function FileLinkDialog({ open, onOpenChange, folderId, onSuccess }: File
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="file-tags">Tags</Label>
-                <Input 
-                  id="file-tags" 
-                  value={tags} 
-                  onChange={(e) => setTags(e.target.value)} 
-                  placeholder="comma, separated, tags"
+                <Label htmlFor="file-metadata">Metadata (JSON)</Label>
+                <Textarea 
+                  id="file-metadata" 
+                  value={metadataText} 
+                  onChange={(e) => setMetadataText(e.target.value)} 
+                  placeholder='{"field-1":"value","field-2":["value1","value2"]}'
+                  className="min-h-[120px] font-mono resize-y"
                 />
               </div>
             </div>

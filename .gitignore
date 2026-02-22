@@ -72,3 +72,5 @@ bld/
 *.user
 appsettings.Development.json
 appsettings.Local.json
+
+.sisyphus/

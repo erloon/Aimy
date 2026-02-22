@@ -11,7 +11,9 @@ public class ApplicationDbContextFactory : IDesignTimeDbContextFactory<Applicati
         
         // This is only used for migrations generation
         // Actual connection string comes from Aspire at runtime
-        optionsBuilder.UseNpgsql("Host=localhost;Database=aimy;Username=postgres;Password=postgres");
+        optionsBuilder.UseNpgsql(
+            "Host=localhost;Database=aimy;Username=postgres;Password=postgres",
+            options => options.UseVector());
         
         return new ApplicationDbContext(optionsBuilder.Options);
     }

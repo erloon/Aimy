@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { Link, matchPath, useLocation } from "react-router-dom"
 import {
     Sidebar,
     SidebarContent,
@@ -18,55 +19,62 @@ import {
     BookOpen,
 } from "lucide-react"
 
-// This is sample data.
+type NavItem = {
+    title: string
+    to: string
+    icon: React.ElementType
+    matchPathPattern: string
+    end?: boolean
+}
+
 const data = {
     navMain: [
         {
             title: "Storage",
-            url: "#/storage",
+            to: "/storage",
             icon: HardDrive,
-            isActive: false,
+            matchPathPattern: "/storage",
+            end: true,
         },
         {
             title: "Knowledge Base",
-            url: "#/knowledge-base",
+            to: "/knowledge-base",
             icon: BookOpen,
-            isActive: true,
+            matchPathPattern: "/knowledge-base",
+            end: true,
         },
         {
             title: "Storage Demo",
-            url: "#/storage/demo",
+            to: "/storage/demo",
             icon: HardDrive,
-            isActive: false,
+            matchPathPattern: "/storage/demo",
+            end: true,
         },
-    ],
+    ] satisfies NavItem[],
 }
 
-function NavMain({
-    items,
-}: {
-    items: {
-        title: string
-        url: string
-        icon?: React.ElementType
-        isActive?: boolean
-    }[]
-}) {
+function NavMain({ items }: { items: NavItem[] }) {
+    const { pathname } = useLocation()
+
     return (
         <SidebarGroup>
             <SidebarGroupLabel>Platform</SidebarGroupLabel>
             <SidebarGroupContent>
                 <SidebarMenu>
-                    {items.map((item) => (
-                        <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild isActive={item.isActive} tooltip={item.title}>
-                                <a href={item.url}>
+                    {items.map((item) => {
+                        const isActive = !!matchPath({ path: item.matchPathPattern, end: item.end ?? true }, pathname)
+
+                        return (
+                            <SidebarMenuItem key={item.title}>
+                                <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+                                    <Link to={item.to}>
                                     {item.icon && <item.icon />}
                                     <span>{item.title}</span>
-                                </a>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
-                    ))}
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        )
+                    })}
                 </SidebarMenu>
             </SidebarGroupContent>
         </SidebarGroup>

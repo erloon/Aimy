@@ -2,9 +2,7 @@ using Aimy.API.Models;
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.DTOs.KnowledgeBase;
 using Aimy.Core.Domain.Entities;
-using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
-using Aimy.Core.Application.Interfaces.Upload;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Aimy.API.Endpoints;
@@ -78,7 +76,7 @@ public static class KnowledgeItemEndpoints
         Guid? folderId,
         bool includeSubFolders,
         string? search,
-        string? tags,
+        string? metadata,
         KnowledgeItemType? type,
         int page = 1,
         int pageSize = 10,
@@ -101,7 +99,7 @@ public static class KnowledgeItemEndpoints
                 FolderId = folderId,
                 IncludeSubFolders = includeSubFolders,
                 Search = search,
-                Tags = tags,
+                Metadata = metadata,
                 Type = type,
                 Page = page,
                 PageSize = pageSize

@@ -8,7 +8,7 @@ export interface KnowledgeItem {
   title: string
   itemType: KnowledgeItemType
   content: string | null
-  tags: string | null
+  metadata: string | null
   sourceUploadId: string | null
   sourceUploadFileName?: string | null
   sourceUploadMetadata?: string | null
@@ -54,20 +54,20 @@ export interface CreateNoteRequest {
   folderId: string
   title: string
   content?: string
-  tags?: string
+  metadata?: string
 }
 
 export interface CreateItemFromUploadRequest {
   folderId: string
   uploadId: string
   title?: string
-  tags?: string
+  metadata?: string
 }
 
 export interface UpdateItemRequest {
   title?: string
   content?: string
-  tags?: string
+  metadata?: string
   folderId?: string
 }
 
@@ -75,7 +75,7 @@ export interface ItemSearchRequest {
   folderId?: string
   includeSubFolders?: boolean
   search?: string
-  tags?: string
+  metadata?: string
   type?: KnowledgeItemType
   page?: number
   pageSize?: number

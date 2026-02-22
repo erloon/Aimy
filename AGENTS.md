@@ -14,6 +14,7 @@ Aimy/
 │   ├── Aimy.API/            # ASP.NET Core API (entry point)
 │   ├── Aimy.Core/           # Domain (entities, ports, services)
 │   └── Aimy.Infrastructure/ # Adapters (EF Core, external libs)
+│   └── Aimy.UnitTests/      # Unit tests
 └── aspire/                  # .NET Aspire orchestration
     ├── Aimy.AppHost/        # Container orchestration
     └── Aimy.ServiceDefaults/ # Telemetry, health, resilience

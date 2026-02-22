@@ -81,7 +81,7 @@ export async function getFiles(params: {
 
 export async function uploadFile(
   file: File,
-  metadata?: Record<string, string>
+  metadata?: Record<string, unknown>
 ): Promise<UploadResponse> {
   const formData = new FormData()
   formData.append('file', file)
@@ -118,7 +118,7 @@ export async function downloadFile(id: string): Promise<Blob> {
 
 export async function updateMetadata(
   id: string,
-  metadata: Record<string, string>
+  metadata: Record<string, unknown>
 ): Promise<NormalizedFileItem> {
   const result = fetchClient<FileItem>(`/uploads/${id}/metadata`, {
     method: 'PATCH',

@@ -24,8 +24,8 @@ public class CreateNoteRequest
     public string? Content { get; set; }
 
     /// <summary>
-    /// JSON array of tags
+    /// JSON object containing metadata
     /// </summary>
-    /// <example>["meeting", "project-x"]</example>
-    public string? Tags { get; set; }
+    /// <example>{"category":"meeting","tags":["project-x"]}</example>
+    public string? Metadata { get; set; }
 }

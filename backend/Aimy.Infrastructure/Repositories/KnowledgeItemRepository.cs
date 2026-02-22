@@ -1,10 +1,8 @@
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
-using Aimy.Core.Application.Interfaces.Upload;
 
 namespace Aimy.Infrastructure.Repositories;
 
 using Aimy.Core.Application.DTOs;
-using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Domain.Entities;
 using Aimy.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -41,7 +39,7 @@ public class KnowledgeItemRepository(ApplicationDbContext context) : IKnowledgeI
         Guid? folderId,
         IReadOnlyCollection<Guid>? folderIds,
         string? search,
-        string? tags,
+        string? metadata,
         KnowledgeItemType? type,
         int page,
         int pageSize,
@@ -74,10 +72,10 @@ public class KnowledgeItemRepository(ApplicationDbContext context) : IKnowledgeI
             query = query.Where(ki => ki.ItemType == type.Value);
         }
         
-        // For MVP, tags is JSON string - skip complex filtering
-        // if (!string.IsNullOrWhiteSpace(tags))
+        // For MVP, metadata is JSON string - skip complex filtering
+        // if (!string.IsNullOrWhiteSpace(metadata))
         // {
-        //     query = query.Where(ki => ki.Tags != null && ki.Tags.Contains(tags));
+        //     query = query.Where(ki => ki.Metadata != null && ki.Metadata.Contains(metadata));
         // }
         
         var totalCount = await query.CountAsync(ct);
@@ -95,6 +93,19 @@ public class KnowledgeItemRepository(ApplicationDbContext context) : IKnowledgeI
             PageSize = pageSize,
             TotalCount = totalCount
         };
+    }
+
+    public async Task<bool> ExistsBySourceUploadIdAsync(Guid sourceUploadId, CancellationToken ct)
+    {
+        return await context.KnowledgeItems
+            .AnyAsync(ki => ki.SourceUploadId == sourceUploadId, ct);
+    }
+
+    public async Task<IReadOnlyCollection<KnowledgeItem>> GetBySourceUploadIdAsync(Guid sourceUploadId, CancellationToken ct)
+    {
+        return await context.KnowledgeItems
+            .Where(ki => ki.SourceUploadId == sourceUploadId)
+            .ToListAsync(ct);
     }
 
     public async Task UpdateAsync(KnowledgeItem item, CancellationToken ct)

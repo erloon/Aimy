@@ -53,7 +53,7 @@ export async function searchItems(params: ItemSearchRequest): Promise<PagedResul
     searchParams.set('includeSubFolders', String(params.includeSubFolders))
   }
   if (params.search) searchParams.set('search', params.search)
-  if (params.tags) searchParams.set('tags', params.tags)
+  if (params.metadata) searchParams.set('metadata', params.metadata)
   if (params.type) searchParams.set('type', params.type)
   if (params.page) searchParams.set('page', String(params.page))
   if (params.pageSize) searchParams.set('pageSize', String(params.pageSize))

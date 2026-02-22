@@ -4,6 +4,7 @@ import { ItemList } from '../components/ItemList'
 import { NoteEditor } from '../components/NoteEditor'
 import { FileLinkDialog } from '../components/FileLinkDialog'
 import { CreateFolderDialog } from '../components/CreateFolderDialog'
+import { FilePreviewSheet } from '@/components/shared/FilePreviewSheet'
 import { Button } from '@/components/ui/button'
 import { Plus, Link2 } from 'lucide-react'
 import { KnowledgeItem } from '../types'
@@ -15,6 +16,16 @@ export function KnowledgeBasePage() {
   const [fileLinkOpen, setFileLinkOpen] = useState(false)
   const [createFolderOpen, setCreateFolderOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<KnowledgeItem | undefined>(undefined)
+  const [previewSource, setPreviewSource] = useState<{ id: string; name: string } | null>(null)
+
+  const handleViewSource = (item: KnowledgeItem) => {
+    if (item.sourceUploadId) {
+      setPreviewSource({
+        id: item.sourceUploadId,
+        name: item.sourceUploadFileName || item.title,
+      })
+    }
+  }
 
   const handleEditItem = (item: KnowledgeItem) => {
     setEditingItem(item)
@@ -83,6 +94,7 @@ export function KnowledgeBasePage() {
           <ItemList
             folderId={selectedFolderId}
             onEditItem={handleEditItem}
+            onViewSource={handleViewSource}
           />
         </div>
       </div>
@@ -110,6 +122,13 @@ export function KnowledgeBasePage() {
         onSuccess={() => {
           // ItemList will auto-refresh via React Query
         }}
+      />
+
+      <FilePreviewSheet
+        open={!!previewSource}
+        onOpenChange={(open) => !open && setPreviewSource(null)}
+        fileId={previewSource?.id ?? null}
+        fileName={previewSource?.name ?? null}
       />
     </div>
   )

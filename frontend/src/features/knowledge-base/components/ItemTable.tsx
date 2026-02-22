@@ -8,16 +8,17 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { KnowledgeItem } from "../types"
-import { FileText, File, Pencil, Trash2 } from "lucide-react"
+import { FileText, File, Pencil, Trash2, Eye } from "lucide-react"
 
 
 interface ItemTableProps {
   items: KnowledgeItem[]
   onEdit?: (item: KnowledgeItem) => void
   onDelete?: (item: KnowledgeItem) => void
+  onViewSource?: (item: KnowledgeItem) => void
 }
 
-export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
+export function ItemTable({ items, onEdit, onDelete, onViewSource }: ItemTableProps) {
   return (
     <div className="rounded-md border">
       <Table>
@@ -85,6 +86,12 @@ export function ItemTable({ items, onEdit, onDelete }: ItemTableProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                    {item.sourceUploadId && onViewSource && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onViewSource(item)}>
+                        <Eye className="h-4 w-4" />
+                        <span className="sr-only">Source View</span>
+                      </Button>
+                    )}
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit?.(item)}>
                       <Pencil className="h-4 w-4" />
                       <span className="sr-only">Edit</span>

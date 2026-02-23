@@ -15,7 +15,7 @@ public class IngestionEmbeddingRecord
 
     [VectorStoreData(StorageName = "content")] public required string Content { get; set; }
 
-    [VectorStoreVector(Dimensions: VectorStoreSchema.EmbeddingDimensions, StorageName = "embedding")]
+    [VectorStoreVector(Dimensions: VectorStoreSchema.EmbeddingDimensions, DistanceFunction = DistanceFunction.CosineSimilarity, StorageName = "embedding")]
     public ReadOnlyMemory<float>? Embedding { get; set; }
 
     [VectorStoreData(StorageName = "context")] public string? Context { get; set; }

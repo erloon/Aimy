@@ -101,3 +101,17 @@ export interface PagedResult<T> {
   totalCount: number
   totalPages: number
 }
+
+export interface SemanticSearchResult {
+  id: string
+  title: string
+  itemType: KnowledgeItemType
+  content: string | null
+  metadata: string | null
+  folderName: string | null
+  sourceUploadId: string | null
+  sourceUploadFileName: string | null
+  score: number
+  createdAt: string
+  updatedAt: string
+}

@@ -11,6 +11,7 @@ import type {
   UpdateItemRequest,
   ItemSearchRequest,
   PagedResult,
+  SemanticSearchResult,
 } from '../types'
 
 // Folder APIs
@@ -93,4 +94,10 @@ export async function deleteItem(id: string): Promise<void> {
   await fetchClient<void>(`/kb/items/${id}`, {
     method: 'DELETE',
   })
+}
+
+export async function semanticSearch(query: string): Promise<SemanticSearchResult[]> {
+  const searchParams = new URLSearchParams()
+  searchParams.set('query', query)
+  return fetchClient<SemanticSearchResult[]>(`/kb/search?${searchParams.toString()}`)
 }

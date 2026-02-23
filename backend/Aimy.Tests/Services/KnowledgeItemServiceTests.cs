@@ -882,6 +882,74 @@ public class KnowledgeItemServiceTests
         result.Should().NotBeNull();
         result!.Id.Should().Be(itemId);
         result.Title.Should().Be("Test Item");
+        result.Summary.Should().BeNull();
+        result.ChunkCount.Should().BeNull();
+        result.Chunks.Should().BeNull();
+        result.SourceMarkdown.Should().BeNull();
+
+        _dataIngestionServiceMock.Verify(
+            s => s.GetByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Test]
+    public async Task GetByIdAsync_WithSourceUploadAndIngestionData_SetsIngestionFields()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var sourceUploadId = Guid.NewGuid();
+
+        var kb = new KnowledgeBase { Id = kbId, UserId = userId };
+        var folder = new Folder { Id = folderId, KnowledgeBaseId = kbId, KnowledgeBase = kb, Name = "Test Folder" };
+        var item = new KnowledgeItem
+        {
+            Id = itemId,
+            FolderId = folderId,
+            Title = "Test Item",
+            ItemType = KnowledgeItemType.Note,
+            SourceUploadId = sourceUploadId,
+            Folder = folder
+        };
+
+        var ingestion = new UploadIngestionResponse
+        {
+            Summary = "Ingestion summary",
+            Chunks =
+            [
+                new UploadChunkResponse { Id = Guid.NewGuid(), Content = "Chunk one" },
+                new UploadChunkResponse { Id = Guid.NewGuid(), Content = "Chunk two" }
+            ]
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _itemRepositoryMock
+            .Setup(r => r.GetByIdAsync(itemId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(item);
+
+        _dataIngestionServiceMock
+            .Setup(s => s.GetByUploadIdAsync(sourceUploadId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ingestion);
+
+        // Act
+        var result = await _sut.GetByIdAsync(itemId, CancellationToken.None);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Summary.Should().Be("Ingestion summary");
+        result.ChunkCount.Should().Be(2);
+        result.Chunks.Should().NotBeNull();
+        result.Chunks!.Should().HaveCount(2);
+        result.SourceMarkdown.Should().Be("Chunk one\n\nChunk two");
+
+        _dataIngestionServiceMock.Verify(
+            s => s.GetByUploadIdAsync(sourceUploadId, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Test]

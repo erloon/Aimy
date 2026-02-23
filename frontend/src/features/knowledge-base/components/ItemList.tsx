@@ -12,9 +12,10 @@ interface ItemListProps {
   folderId?: string | null
   onEditItem?: (item: KnowledgeItem) => void
   onViewSource?: (item: KnowledgeItem) => void
+  onViewItem?: (item: KnowledgeItem) => void
 }
 
-export function ItemList({ folderId, onEditItem, onViewSource }: ItemListProps) {
+export function ItemList({ folderId, onEditItem, onViewSource, onViewItem }: ItemListProps) {
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const { data, isLoading, isError } = useItems({
@@ -102,6 +103,7 @@ export function ItemList({ folderId, onEditItem, onViewSource }: ItemListProps) 
                   onEdit={() => onEditItem?.(item)}
                   onDelete={() => handleDelete(item)}
                   onViewSource={item.sourceUploadId ? () => onViewSource?.(item) : undefined}
+                  onViewItem={() => onViewItem?.(item)}
                 />
               ))}
             </div>
@@ -112,6 +114,7 @@ export function ItemList({ folderId, onEditItem, onViewSource }: ItemListProps) 
                 onEdit={onEditItem}
                 onDelete={handleDelete}
                 onViewSource={onViewSource}
+                onViewItem={onViewItem}
               />
             </div>
           )

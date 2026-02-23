@@ -9,10 +9,11 @@ interface ItemCardProps {
   onEdit?: () => void
   onDelete?: () => void
   onViewSource?: () => void
+  onViewItem?: () => void
   className?: string
 }
 
-export function ItemCard({ item, onEdit, onDelete, onViewSource, className }: ItemCardProps) {
+export function ItemCard({ item, onEdit, onDelete, onViewSource, onViewItem, className }: ItemCardProps) {
   const Icon = item.itemType === 'Note' ? FileText : File
 
   const metadataEntries = (() => {
@@ -31,7 +32,7 @@ export function ItemCard({ item, onEdit, onDelete, onViewSource, className }: It
   })()
 
   return (
-    <Card className={cn("hover:bg-accent/50 transition-colors flex flex-col justify-between h-full group relative overflow-hidden", className)}>
+    <Card className={cn("hover:bg-accent/50 transition-colors flex flex-col justify-between h-full group relative overflow-hidden cursor-pointer", className)} onClick={onViewItem}>
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2 min-w-0">
         <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
           <div className="p-1.5 rounded-md bg-muted shrink-0">
@@ -81,16 +82,16 @@ export function ItemCard({ item, onEdit, onDelete, onViewSource, className }: It
         </div>
         <div className="flex gap-1">
           {item.sourceUploadId && onViewSource && (
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onViewSource}>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onViewSource(); }}>
               <Eye className="h-3 w-3" />
               <span className="sr-only">Source View</span>
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onEdit}>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); onEdit?.(); }}>
             <Pencil className="h-3 w-3" />
             <span className="sr-only">Edit</span>
           </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={onDelete}>
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); onDelete?.(); }}>
             <Trash2 className="h-3 w-3" />
             <span className="sr-only">Delete</span>
           </Button>

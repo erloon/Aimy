@@ -16,9 +16,10 @@ interface ItemTableProps {
   onEdit?: (item: KnowledgeItem) => void
   onDelete?: (item: KnowledgeItem) => void
   onViewSource?: (item: KnowledgeItem) => void
+  onViewItem?: (item: KnowledgeItem) => void
 }
 
-export function ItemTable({ items, onEdit, onDelete, onViewSource }: ItemTableProps) {
+export function ItemTable({ items, onEdit, onDelete, onViewSource, onViewItem }: ItemTableProps) {
   return (
     <div className="rounded-md border">
       <Table>
@@ -52,7 +53,7 @@ export function ItemTable({ items, onEdit, onDelete, onViewSource }: ItemTablePr
             })()
 
             return (
-              <TableRow key={item.id} className="group">
+              <TableRow key={item.id} className="group cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => onViewItem?.(item)}>
                 <TableCell>
                   <Icon className="h-4 w-4 text-muted-foreground" />
                 </TableCell>
@@ -87,16 +88,16 @@ export function ItemTable({ items, onEdit, onDelete, onViewSource }: ItemTablePr
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                     {item.sourceUploadId && onViewSource && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onViewSource(item)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onViewSource(item); }}>
                         <Eye className="h-4 w-4" />
                         <span className="sr-only">Source View</span>
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit?.(item)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onEdit?.(item); }}>
                       <Pencil className="h-4 w-4" />
                       <span className="sr-only">Edit</span>
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => onDelete?.(item)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); onDelete?.(item); }}>
                       <Trash2 className="h-4 w-4" />
                       <span className="sr-only">Delete</span>
                     </Button>

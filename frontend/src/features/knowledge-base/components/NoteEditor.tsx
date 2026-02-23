@@ -11,9 +11,16 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useCreateNote, useUpdateItem } from "../hooks/useItems"
 import { KnowledgeItem } from "../types"
-import { Loader2 } from "lucide-react"
+import { Loader2, Plus, Trash2 } from "lucide-react"
+
+interface MetadataField {
+  id: string
+  key: string
+  value: string
+}
 
 interface NoteEditorProps {
   open: boolean
@@ -29,40 +36,58 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
   
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
-  const [metadataText, setMetadataText] = useState("{}")
+  const [metadataFields, setMetadataFields] = useState<MetadataField[]>([{ id: createFieldId(), key: "", value: "" }])
+  const [metadataError, setMetadataError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setTitle(item?.title || "")
       setContent(item?.content || "")
-      let initialMetadata = "{}"
-      if (item?.metadata) {
-        try {
-          const parsed = JSON.parse(item.metadata)
-          initialMetadata = JSON.stringify(parsed, null, 2)
-        } catch {
-          initialMetadata = item.metadata
-        }
-      }
-      setMetadataText(initialMetadata)
+      setMetadataFields(parseMetadataFields(item?.metadata))
+      setMetadataError(null)
+      setSubmitError(null)
     } else {
       // Reset form when closed if needed, but useEffect above handles it on open
     }
   }, [open, item])
 
+  const validateMetadata = (fields: MetadataField[]): { ok: true; normalized: string } | { ok: false; error: string } => {
+    const normalizedEntries = fields
+      .map((field) => ({
+        key: field.key.trim(),
+        value: field.value.trim(),
+      }))
+      .filter((field) => field.key.length > 0 || field.value.length > 0)
+
+    const metadataObject: Record<string, string> = {}
+
+    for (const entry of normalizedEntries) {
+      if (!entry.key) {
+        return { ok: false, error: "Each metadata row needs a key." }
+      }
+
+      if (metadataObject[entry.key] !== undefined) {
+        return { ok: false, error: `Duplicate metadata key: ${entry.key}` }
+      }
+
+      metadataObject[entry.key] = entry.value
+    }
+
+    return { ok: true, normalized: JSON.stringify(metadataObject) }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    let normalizedMetadata = "{}"
-    if (metadataText.trim()) {
-      try {
-        const parsed = JSON.parse(metadataText)
-        normalizedMetadata = JSON.stringify(parsed)
-      } catch {
-        console.error("Metadata must be valid JSON")
-        return
-      }
+
+    const metadataValidation = validateMetadata(metadataFields)
+    if (!metadataValidation.ok) {
+      setMetadataError(metadataValidation.error)
+      return
     }
+
+    setMetadataError(null)
+    setSubmitError(null)
 
     try {
       if (item) {
@@ -71,7 +96,7 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
           request: {
             title,
             content,
-            metadata: normalizedMetadata,
+            metadata: metadataValidation.normalized,
             folderId: item.folderId 
           }
         })
@@ -80,13 +105,14 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
           folderId,
           title,
           content,
-          metadata: normalizedMetadata,
+          metadata: metadataValidation.normalized,
         })
       }
       onSuccess?.()
       onOpenChange(false)
     } catch (error) {
-      console.error("Failed to save note:", error)
+      const message = error instanceof Error ? error.message : "Failed to save note."
+      setSubmitError(message)
     }
   }
 
@@ -113,14 +139,77 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="metadata">Metadata (JSON)</Label>
-            <Textarea 
-              id="metadata" 
-              value={metadataText} 
-              onChange={(e) => setMetadataText(e.target.value)} 
-              placeholder='{"field-1":"value","field-2":["value1","value2"]}'
-              className="min-h-[120px] font-mono resize-y"
-            />
+            <div className="flex items-center justify-between">
+              <Label>Metadata (optional)</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setMetadataFields((prev) => [...prev, { id: createFieldId(), key: "", value: "" }])
+                  setMetadataError(null)
+                }}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add field
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {metadataFields.map((field) => (
+                <div key={field.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                  <Input
+                    value={field.key}
+                    onChange={(e) => {
+                      const nextValue = e.target.value
+                      setMetadataFields((prev) => prev.map((entry) => entry.id === field.id ? { ...entry, key: nextValue } : entry))
+                      if (metadataError) {
+                        setMetadataError(null)
+                      }
+                    }}
+                    placeholder="key"
+                  />
+                  <Input
+                    value={field.value}
+                    onChange={(e) => {
+                      const nextValue = e.target.value
+                      setMetadataFields((prev) => prev.map((entry) => entry.id === field.id ? { ...entry, value: nextValue } : entry))
+                      if (metadataError) {
+                        setMetadataError(null)
+                      }
+                    }}
+                    placeholder="value"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setMetadataFields((prev) => {
+                        if (prev.length <= 1) {
+                          return [{ id: createFieldId(), key: "", value: "" }]
+                        }
+
+                        return prev.filter((entry) => entry.id !== field.id)
+                      })
+                      if (metadataError) {
+                        setMetadataError(null)
+                      }
+                    }}
+                    aria-label="Remove metadata field"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Add simple key-value metadata, for example: category = notes, source = meeting.
+            </p>
+            {metadataError && (
+              <Alert variant="destructive">
+                <AlertDescription>{metadataError}</AlertDescription>
+              </Alert>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="content">Content (Markdown)</Label>
@@ -132,6 +221,11 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
               className="min-h-[200px] font-mono resize-y"
             />
           </div>
+          {submitError && (
+            <Alert variant="destructive">
+              <AlertDescription>{submitError}</AlertDescription>
+            </Alert>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
@@ -145,4 +239,34 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
       </DialogContent>
     </Dialog>
   )
+}
+
+function createFieldId(): string {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function parseMetadataFields(rawMetadata?: string | null): MetadataField[] {
+  if (!rawMetadata) {
+    return [{ id: createFieldId(), key: "", value: "" }]
+  }
+
+  try {
+    const parsed = JSON.parse(rawMetadata)
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const entries = Object.entries(parsed)
+      if (entries.length === 0) {
+        return [{ id: createFieldId(), key: "", value: "" }]
+      }
+
+      return entries.map(([key, value]) => ({
+        id: createFieldId(),
+        key,
+        value: value === null ? "" : typeof value === "string" ? value : JSON.stringify(value),
+      }))
+    }
+  } catch {
+    // Fallback below for legacy/non-json metadata values.
+  }
+
+  return [{ id: createFieldId(), key: "notes", value: rawMetadata }]
 }

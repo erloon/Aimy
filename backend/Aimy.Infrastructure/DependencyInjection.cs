@@ -52,7 +52,11 @@ public static class DependencyInjection
         // Database
         builder.AddNpgsqlDbContext<ApplicationDbContext>(
             "aimydb",
-            configureDbContextOptions: options => options.UseNpgsql(o => o.UseVector()));
+            configureDbContextOptions: options => options.UseNpgsql(o =>
+            {
+                o.UseVector();
+                o.ConfigureDataSource(ds => ds.EnableDynamicJson());
+            }));
         builder.Services.AddPostgresVectorStore("aimydb");
         // Repositorie
         builder.Services.AddScoped<IUserRepository, UserRepository>();

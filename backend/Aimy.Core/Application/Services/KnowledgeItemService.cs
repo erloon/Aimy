@@ -240,7 +240,21 @@ public class KnowledgeItemService(
         if (item.Folder?.KnowledgeBase?.UserId != userId)
             throw new UnauthorizedAccessException("Item does not belong to user");
 
-        return MapToResponse(item);
+        var response = MapToResponse(item);
+
+        if (item.SourceUploadId.HasValue)
+        {
+            var ingestion = await dataIngestionService.GetByUploadIdAsync(item.SourceUploadId.Value, ct);
+            if (ingestion is not null)
+            {
+                response.Summary = ingestion.Summary;
+                response.Chunks = ingestion.Chunks;
+                response.ChunkCount = ingestion.ChunkCount;
+                response.SourceMarkdown = string.Join("\n\n", ingestion.Chunks.Select(c => c.Content));
+            }
+        }
+
+        return response;
     }
 
     public async Task<PagedResult<ItemResponse>> SearchAsync(ItemSearchRequest request, CancellationToken ct)

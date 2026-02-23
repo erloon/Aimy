@@ -1,5 +1,6 @@
 namespace Aimy.Core.Application.DTOs.KnowledgeBase;
 
+using Aimy.Core.Application.DTOs.Upload;
 using Aimy.Core.Domain.Entities;
 
 /// <summary>
@@ -66,6 +67,14 @@ public class ItemResponse
     /// </summary>
     /// <example>{"category":"docs"}</example>
     public string? SourceUploadMetadata { get; set; }
+
+    public string? SourceMarkdown { get; set; }
+
+    public string? Summary { get; set; }
+
+    public int? ChunkCount { get; set; }
+
+    public List<UploadChunkResponse>? Chunks { get; set; }
 
     /// <summary>
     /// Timestamp when the item was created (UTC)

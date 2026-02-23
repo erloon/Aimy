@@ -14,6 +14,19 @@ export interface KnowledgeItem {
   sourceUploadMetadata?: string | null
   createdAt: string
   updatedAt: string
+  sourceMarkdown?: string | null
+  summary?: string | null
+  chunkCount?: number | null
+  chunks?: UploadChunkResponse[] | null
+}
+
+export interface UploadChunkResponse {
+  id: string
+  chunkIndex: number
+  content: string
+  summary?: string | null
+  context?: string | null
+  tokenCount?: number | null
 }
 
 // Folder types

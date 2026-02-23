@@ -5,9 +5,11 @@ import { NoteEditor } from '../components/NoteEditor'
 import { FileLinkDialog } from '../components/FileLinkDialog'
 import { CreateFolderDialog } from '../components/CreateFolderDialog'
 import { FilePreviewSheet } from '@/components/shared/FilePreviewSheet'
+import { ItemDetailView } from '../components/ItemDetailView'
 import { Button } from '@/components/ui/button'
 import { Plus, Link2 } from 'lucide-react'
 import { KnowledgeItem } from '../types'
+import { useItem } from '../hooks/useKnowledgeBase'
 import { Separator } from "@/components/ui/separator"
 
 export function KnowledgeBasePage() {
@@ -17,6 +19,8 @@ export function KnowledgeBasePage() {
   const [createFolderOpen, setCreateFolderOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<KnowledgeItem | undefined>(undefined)
   const [previewSource, setPreviewSource] = useState<{ id: string; name: string } | null>(null)
+  const [viewingItemId, setViewingItemId] = useState<string | null>(null)
+  const { data: viewingItem } = useItem(viewingItemId ?? '')
 
   const handleViewSource = (item: KnowledgeItem) => {
     if (item.sourceUploadId) {
@@ -61,42 +65,57 @@ export function KnowledgeBasePage() {
         />
       </div>
 
-      {/* Main Content - Item List */}
+      {/* Main Content - Item List or Detail View */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="border-b p-4 flex justify-between items-center h-16 shrink-0">
-          <h2 className="text-lg font-medium">
-            {selectedFolderId ? "Folder Items" : "All Items"}
-          </h2>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFileLinkOpen(true)}
-              disabled={!selectedFolderId}
-              title={!selectedFolderId ? "Select a folder to link files" : "Link a file"}
-            >
-              <Link2 className="h-4 w-4 mr-2" />
-              Link File
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleCreateNote}
-              disabled={!selectedFolderId}
-              title={!selectedFolderId ? "Select a folder to create notes" : "Create a note"}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Note
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex-1 p-4 overflow-hidden">
-          <ItemList
-            folderId={selectedFolderId}
-            onEditItem={handleEditItem}
+        {viewingItemId && viewingItem ? (
+          <ItemDetailView
+            item={viewingItem}
+            onBack={() => setViewingItemId(null)}
+            onEdit={(item) => {
+              setViewingItemId(null);
+              handleEditItem(item);
+            }}
             onViewSource={handleViewSource}
           />
-        </div>
+        ) : (
+          <>
+            <div className="border-b p-4 flex justify-between items-center h-16 shrink-0">
+              <h2 className="text-lg font-medium">
+                {selectedFolderId ? "Folder Items" : "All Items"}
+              </h2>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFileLinkOpen(true)}
+                  disabled={!selectedFolderId}
+                  title={!selectedFolderId ? "Select a folder to link files" : "Link a file"}
+                >
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Link File
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleCreateNote}
+                  disabled={!selectedFolderId}
+                  title={!selectedFolderId ? "Select a folder to create notes" : "Create a note"}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Note
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex-1 p-4 overflow-hidden">
+              <ItemList
+                folderId={selectedFolderId}
+                onEditItem={handleEditItem}
+                onViewSource={handleViewSource}
+                onViewItem={(item) => setViewingItemId(item.id)}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <CreateFolderDialog

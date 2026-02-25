@@ -8,14 +8,15 @@ namespace Aimy.Core.Application.Services;
 
 using DTOs;
 using Domain.Entities;
-
+using Microsoft.Extensions.Logging;
 public class UploadService(
     IStorageService storageService,
     IUploadRepository uploadRepository,
     ICurrentUserService currentUserService,
     IUploadQueueWriter queueWriter,
     IKnowledgeItemRepository knowledgeItemRepository,
-    IDataIngestionService dataIngestionService)
+    IDataIngestionService dataIngestionService,
+    ILogger<UploadService> logger)
     : IUploadService
 {
     public async Task<UploadFileResponse> UploadAsync(
@@ -29,6 +30,8 @@ public class UploadService(
         if (userId is null)
             throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Uploading file {FileName} ({ContentType}, {SizeBytes} bytes) for user {UserId}",
+            fileName, contentType, fileStream.Length, userId);
         // Handle duplicate filenames - append suffix if file with same name exists
         var displayFileName = await GetUniqueFileNameAsync(userId.Value, fileName, ct);
 
@@ -52,6 +55,7 @@ public class UploadService(
 
         var savedUpload = await uploadRepository.AddAsync(upload, ct);  
         await queueWriter.WriteAsync(new UploadToProcess(savedUpload.Id), ct);
+        logger.LogInformation("File uploaded: {UploadId} ({FileName})", savedUpload.Id, savedUpload.FileName);
         return await BuildUploadFileResponseAsync(savedUpload, ct);
     }
 
@@ -84,6 +88,7 @@ public class UploadService(
         if (userId is null)
             throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Downloading file {UploadId} for user {UserId}", id, userId);
         var upload = await uploadRepository.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException("File not found");
 
@@ -105,6 +110,8 @@ public class UploadService(
         if (upload.UserId != userId.Value)
             throw new UnauthorizedAccessException("User does not have access to this file");
 
+        logger.LogInformation("Deleting file {UploadId} ({FileName}) for user {UserId}",
+            id, upload.FileName, userId);
         var assignedToKnowledgeBase = await knowledgeItemRepository.ExistsBySourceUploadIdAsync(id, ct);
         if (assignedToKnowledgeBase)
             throw new InvalidOperationException("Cannot delete file assigned to knowledge base");
@@ -112,6 +119,7 @@ public class UploadService(
         await dataIngestionService.DeleteByUploadIdAsync(id, ct);
         await storageService.DeleteAsync(upload.StoragePath, ct);
         await uploadRepository.DeleteAsync(id, ct);
+        logger.LogInformation("File deleted: {UploadId}", id);
     }
 
     public async Task<UploadFileResponse> UpdateMetadataAsync(Guid id, string? metadata, CancellationToken ct)
@@ -120,6 +128,7 @@ public class UploadService(
         if (userId is null)
             throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Updating metadata for file {UploadId}", id);
         var upload = await uploadRepository.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException("File not found");
 
@@ -138,6 +147,9 @@ public class UploadService(
             await knowledgeItemRepository.UpdateAsync(linkedItem, ct);
         }
 
+
+        logger.LogInformation("Metadata updated for file {UploadId}, {LinkedItemCount} linked items updated",
+            id, linkedItems.Count);
         return await BuildUploadFileResponseAsync(upload, ct);
     }
 

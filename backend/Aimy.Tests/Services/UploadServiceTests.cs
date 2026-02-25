@@ -7,6 +7,7 @@ using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;
 using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Aimy.Tests.Services;
 
@@ -36,8 +37,8 @@ public class UploadServiceTests
             _currentUserServiceMock.Object,
             _queueWriterMock.Object,
             _knowledgeItemRepositoryMock.Object,
-            _dataIngestionServiceMock.Object
-            );
+            _dataIngestionServiceMock.Object,
+            NullLogger<UploadService>.Instance);
 
         _dataIngestionServiceMock
             .Setup(s => s.GetByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))

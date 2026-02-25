@@ -9,7 +9,7 @@ namespace Aimy.Core.Application.Services;
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.DTOs.KnowledgeBase;
 using Aimy.Core.Domain.Entities;
-
+using Microsoft.Extensions.Logging;
 public class KnowledgeItemService(
     IKnowledgeBaseRepository kbRepository,
     IFolderRepository folderRepository,
@@ -18,13 +18,16 @@ public class KnowledgeItemService(
     IDataIngestionService dataIngestionService,
     IStorageService storageService,
     ICurrentUserService currentUserService,
-    IUploadQueueWriter queueWriter) : IKnowledgeItemService
+    IUploadQueueWriter queueWriter,
+    ILogger<KnowledgeItemService> logger) : IKnowledgeItemService
 {
     public async Task<ItemResponse> CreateNoteAsync(CreateNoteRequest request, CancellationToken ct)
     {
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Creating note {Title} in folder {FolderId} for user {UserId}",
+            request.Title, request.FolderId, userId);
         // Validate folder ownership
         var folder = await folderRepository.GetByIdAsync(request.FolderId, ct)
             ?? throw new KeyNotFoundException("Folder not found");
@@ -72,6 +75,8 @@ public class KnowledgeItemService(
 
         var savedItem = await itemRepository.AddAsync(item, ct);
         return MapToResponse(savedItem);
+
+        logger.LogInformation("Note created: {ItemId} ({Title})", savedItem.Id, savedItem.Title);
     }
 
     public async Task<ItemResponse> CreateFromUploadAsync(CreateItemFromUploadRequest request, CancellationToken ct)
@@ -79,6 +84,8 @@ public class KnowledgeItemService(
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Creating item from upload {UploadId} in folder {FolderId} for user {UserId}",
+            request.UploadId, request.FolderId, userId);
         // Validate folder ownership
         var folder = await folderRepository.GetByIdAsync(request.FolderId, ct)
             ?? throw new KeyNotFoundException("Folder not found");
@@ -116,6 +123,8 @@ public class KnowledgeItemService(
 
         var savedItem = await itemRepository.AddAsync(item, ct);
         return MapToResponse(savedItem);
+
+        logger.LogInformation("Item created from upload: {ItemId} ({Title})", savedItem.Id, savedItem.Title);
     }
 
     public async Task<ItemResponse> UpdateAsync(Guid id, UpdateItemRequest request, CancellationToken ct)
@@ -123,6 +132,7 @@ public class KnowledgeItemService(
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Updating knowledge item {ItemId}", id);
         var item = await itemRepository.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException("Item not found");
 
@@ -208,6 +218,8 @@ public class KnowledgeItemService(
 
         await itemRepository.UpdateAsync(item, ct);
         return MapToResponse(item);
+
+        logger.LogInformation("Knowledge item updated: {ItemId}", id);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -215,6 +227,7 @@ public class KnowledgeItemService(
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Deleting knowledge item {ItemId}", id);
         var item = await itemRepository.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException("Item not found");
 
@@ -225,6 +238,8 @@ public class KnowledgeItemService(
         // IMPORTANT: For notes, we UNLINK only - do NOT delete the underlying upload
         // This is by design per the plan
         await itemRepository.DeleteAsync(id, ct);
+
+        logger.LogInformation("Knowledge item deleted: {ItemId}", id);
     }
 
     public async Task<ItemResponse?> GetByIdAsync(Guid id, CancellationToken ct)
@@ -262,6 +277,8 @@ public class KnowledgeItemService(
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Searching knowledge items for user {UserId}, folder: {FolderId}, search: {Search}",
+            userId, request.FolderId, request.Search);
         var kb = await kbRepository.GetOrCreateForUserAsync(userId, ct);
 
         IReadOnlyCollection<Guid>? folderIds = null;
@@ -313,6 +330,8 @@ public class KnowledgeItemService(
             PageSize = result.PageSize,
             TotalCount = result.TotalCount
         };
+
+        logger.LogInformation("Search completed: {TotalCount} results found", result.TotalCount);
     }
 
     private static ItemResponse MapToResponse(KnowledgeItem item)

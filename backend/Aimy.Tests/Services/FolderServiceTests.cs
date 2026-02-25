@@ -7,6 +7,7 @@ using Aimy.Core.Application.Services;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;
 using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Aimy.Tests.Services;
 
@@ -27,7 +28,8 @@ public class FolderServiceTests
         _sut = new FolderService(
             _kbRepositoryMock.Object,
             _folderRepositoryMock.Object,
-            _currentUserServiceMock.Object);
+            _currentUserServiceMock.Object,
+            NullLogger<FolderService>.Instance);
     }
 
     #region CreateAsync Tests

@@ -9,6 +9,7 @@ using Aimy.Core.Application.Services;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;
 using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Aimy.Tests.Services;
 
@@ -44,7 +45,8 @@ public class KnowledgeItemServiceTests
             _dataIngestionServiceMock.Object,
             _storageServiceMock.Object,
             _currentUserServiceMock.Object,
-            _queueWriterMock.Object);
+            _queueWriterMock.Object,
+            NullLogger<KnowledgeItemService>.Instance);
 
         _dataIngestionServiceMock
             .Setup(s => s.UpdateMetadataByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))

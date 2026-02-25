@@ -76,3 +76,4 @@ appsettings.Local.json
 .sisyphus/
 .agents/
 docs/
+.opencode/

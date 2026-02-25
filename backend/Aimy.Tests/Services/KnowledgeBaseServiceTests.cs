@@ -6,6 +6,7 @@ using Aimy.Core.Application.Services;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;
 using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Aimy.Tests.Services;
 
@@ -23,7 +24,8 @@ public class KnowledgeBaseServiceTests
         _currentUserServiceMock = new Mock<ICurrentUserService>();
         _sut = new KnowledgeBaseService(
             _kbRepositoryMock.Object,
-            _currentUserServiceMock.Object);
+            _currentUserServiceMock.Object,
+            NullLogger<KnowledgeBaseService>.Instance);
     }
 
     #region GetOrCreateAsync Tests

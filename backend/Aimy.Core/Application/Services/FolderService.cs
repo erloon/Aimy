@@ -1,11 +1,9 @@
 using Aimy.Core.Application.Interfaces.Auth;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
-using Aimy.Core.Application.Interfaces.Upload;
 
 namespace Aimy.Core.Application.Services;
 
 using Aimy.Core.Application.DTOs.KnowledgeBase;
-using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Domain.Entities;
 using Microsoft.Extensions.Logging;
 public class FolderService(
@@ -100,24 +98,46 @@ public class FolderService(
         return MapToResponse(folder);
     }
 
-    public async Task DeleteAsync(Guid id, CancellationToken ct)
+    public async Task DeleteAsync(Guid id, bool force, CancellationToken ct)
     {
-        logger.LogInformation("Deleting folder {FolderId}", id);
+        logger.LogInformation("Deleting folder {FolderId} with force mode {Force}", id, force);
 
-        var (userId, kb) = await EnsureAuthenticatedWithKbAsync(ct);
-        var folder = await GetAndValidateOwnershipAsync(id, kb.Id, ct);
+        var (_, kb) = await EnsureAuthenticatedWithKbAsync(ct);
+        _ = await GetAndValidateOwnershipAsync(id, kb.Id, ct);
 
-        // Check for children
-        if (await folderRepository.HasChildrenAsync(id, ct))
-            throw new InvalidOperationException("Cannot delete folder with subfolders");
+        if (!force)
+        {
+            // Check for children
+            if (await folderRepository.HasChildrenAsync(id, ct))
+                throw new InvalidOperationException("Cannot delete folder with subfolders");
 
-        // Check for items
-        if (await folderRepository.HasItemsAsync(id, ct))
-            throw new InvalidOperationException("Cannot delete folder with items");
+            // Check for items
+            if (await folderRepository.HasItemsAsync(id, ct))
+                throw new InvalidOperationException("Cannot delete folder with items");
 
-        await folderRepository.DeleteAsync(id, ct);
+            await folderRepository.DeleteAsync(id, ct);
+            logger.LogInformation("Folder deleted: {FolderId}", id);
+            return;
+        }
 
-        logger.LogInformation("Folder deleted: {FolderId}", id);
+        await folderRepository.DeleteWithContentsAsync(id, ct);
+        logger.LogInformation("Folder and all descendants deleted: {FolderId}", id);
+    }
+
+    public async Task<FolderContentSummary> GetContentSummaryAsync(Guid id, CancellationToken ct)
+    {
+        logger.LogInformation("Getting content summary for folder {FolderId}", id);
+
+        var (_, kb) = await EnsureAuthenticatedWithKbAsync(ct);
+        _ = await GetAndValidateOwnershipAsync(id, kb.Id, ct);
+
+        var (itemCount, subfolderCount) = await folderRepository.GetContentSummaryAsync(id, ct);
+
+        return new FolderContentSummary
+        {
+            ItemCount = itemCount,
+            SubfolderCount = subfolderCount
+        };
     }
 
     public async Task<FolderTreeResponse> GetTreeAsync(CancellationToken ct)

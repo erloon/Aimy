@@ -57,10 +57,11 @@ export function useMoveFolder() {
 export function useDeleteFolder() {
   const queryClient = useQueryClient()
 
-  return useMutation<void, Error, string>({
-    mutationFn: deleteFolder,
+  return useMutation<void, Error, { id: string; force?: boolean }>({
+    mutationFn: ({ id, force }) => deleteFolder(id, force),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['folderTree'] })
+      await queryClient.invalidateQueries({ queryKey: ['items'] })
     },
   })
 }

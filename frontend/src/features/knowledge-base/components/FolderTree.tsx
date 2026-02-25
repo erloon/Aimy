@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronRight, Folder } from "lucide-react"
+import { ChevronRight, Folder, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   Collapsible,
@@ -15,9 +15,10 @@ interface FolderTreeProps {
   onSelectFolder?: (folderId: string | null) => void
   selectedFolderId?: string | null
   className?: string
+  onDeleteFolder?: (folderId: string, folderName: string) => void
 }
 
-export function FolderTree({ onSelectFolder, selectedFolderId, className }: FolderTreeProps) {
+export function FolderTree({ onSelectFolder, selectedFolderId, className, onDeleteFolder }: FolderTreeProps) {
   const { data, isLoading } = useFolderTree()
 
   if (isLoading) {
@@ -51,6 +52,7 @@ export function FolderTree({ onSelectFolder, selectedFolderId, className }: Fold
           level={0}
           selectedFolderId={selectedFolderId}
           onSelectFolder={onSelectFolder}
+          onDeleteFolder={onDeleteFolder}
         />
       ))}
     </div>
@@ -62,9 +64,10 @@ interface FolderNodeProps {
   level: number
   selectedFolderId?: string | null
   onSelectFolder?: (folderId: string | null) => void
+  onDeleteFolder?: (folderId: string, folderName: string) => void
 }
 
-function FolderNode({ node, level, selectedFolderId, onSelectFolder }: FolderNodeProps) {
+function FolderNode({ node, level, selectedFolderId, onSelectFolder, onDeleteFolder }: FolderNodeProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const hasChildren = node.children && node.children.length > 0
   const isSelected = selectedFolderId === node.id
@@ -103,6 +106,18 @@ function FolderNode({ node, level, selectedFolderId, onSelectFolder }: FolderNod
           <Folder className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
           <span className="truncate">{node.name}</span>
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation()
+            onDeleteFolder?.(node.id, node.name)
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+          <span className="sr-only">Delete {node.name}</span>
+        </Button>
       </div>
 
       {hasChildren && (
@@ -114,6 +129,7 @@ function FolderNode({ node, level, selectedFolderId, onSelectFolder }: FolderNod
               level={level + 1}
               selectedFolderId={selectedFolderId}
               onSelectFolder={onSelectFolder}
+              onDeleteFolder={onDeleteFolder}
             />
           ))}
         </CollapsibleContent>

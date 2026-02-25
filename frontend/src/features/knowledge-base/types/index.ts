@@ -48,6 +48,13 @@ export interface FolderTreeNode {
 export interface FolderTreeResponse {
   rootFolders: FolderTreeNode[]
 }
+export interface FolderContentSummary {
+  itemCount: number
+  subfolderCount: number
+  hasContent: boolean
+}
+
+
 
 // Request types
 export interface CreateFolderRequest {

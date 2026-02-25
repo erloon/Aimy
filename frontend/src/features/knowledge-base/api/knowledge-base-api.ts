@@ -12,6 +12,7 @@ import type {
   ItemSearchRequest,
   PagedResult,
   SemanticSearchResult,
+  FolderContentSummary,
 } from '../types'
 
 // Folder APIs
@@ -40,8 +41,12 @@ export async function moveFolder(id: string, request: MoveFolderRequest): Promis
   })
 }
 
-export async function deleteFolder(id: string): Promise<void> {
-  await fetchClient<void>(`/kb/folders/${id}`, {
+export async function getFolderContentSummary(id: string): Promise<FolderContentSummary> {
+  return fetchClient<FolderContentSummary>(`/kb/folders/${id}/content-summary`)
+}
+
+export async function deleteFolder(id: string, force: boolean = false): Promise<void> {
+  await fetchClient<void>(`/kb/folders/${id}${force ? '?force=true' : ''}`, {
     method: 'DELETE',
   })
 }

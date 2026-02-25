@@ -1,8 +1,6 @@
 using Aimy.Core.Application.DTOs.KnowledgeBase;
-using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Application.Interfaces.Auth;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
-using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Application.Services;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;
@@ -486,10 +484,42 @@ public class FolderServiceTests
             .ReturnsAsync(false);
 
         // Act
-        await _sut.DeleteAsync(folderId, CancellationToken.None);
+        await _sut.DeleteAsync(folderId, false, CancellationToken.None);
 
         // Assert
         _folderRepositoryMock.Verify(r => r.DeleteAsync(folderId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task DeleteAsync_ForceTrue_DeletesFolderWithContents()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+
+        var folder = new Folder { Id = folderId, KnowledgeBaseId = kbId, Name = "Test Folder" };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(folder);
+
+        // Act
+        await _sut.DeleteAsync(folderId, true, CancellationToken.None);
+
+        // Assert
+        _folderRepositoryMock.Verify(r => r.DeleteWithContentsAsync(folderId, It.IsAny<CancellationToken>()), Times.Once);
+        _folderRepositoryMock.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _folderRepositoryMock.Verify(r => r.HasChildrenAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _folderRepositoryMock.Verify(r => r.HasItemsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]
@@ -519,7 +549,7 @@ public class FolderServiceTests
             .ReturnsAsync(true);
 
         // Act
-        var act = () => _sut.DeleteAsync(folderId, CancellationToken.None);
+        var act = () => _sut.DeleteAsync(folderId, false, CancellationToken.None);
 
         // Assert
         act.Should().ThrowAsync<InvalidOperationException>()
@@ -559,7 +589,7 @@ public class FolderServiceTests
             .ReturnsAsync(true);
 
         // Act
-        var act = () => _sut.DeleteAsync(folderId, CancellationToken.None);
+        var act = () => _sut.DeleteAsync(folderId, false, CancellationToken.None);
 
         // Assert
         act.Should().ThrowAsync<InvalidOperationException>()
@@ -589,13 +619,286 @@ public class FolderServiceTests
             .ReturnsAsync((Folder?)null);
 
         // Act
-        var act = () => _sut.DeleteAsync(folderId, CancellationToken.None);
+        var act = () => _sut.DeleteAsync(folderId, false, CancellationToken.None);
 
         // Assert
         act.Should().ThrowAsync<KeyNotFoundException>()
             .WithMessage("Folder not found");
 
         _folderRepositoryMock.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void DeleteAsync_ForceTrue_NoCurrentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var folderId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns((Guid?)null);
+
+        // Act
+        var act = () => _sut.DeleteAsync(folderId, true, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User is not authenticated");
+
+        _kbRepositoryMock.Verify(r => r.GetOrCreateForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _folderRepositoryMock.Verify(r => r.DeleteWithContentsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void DeleteAsync_ForceTrue_FolderNotFound_ThrowsKeyNotFoundException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Folder?)null);
+
+        // Act
+        var act = () => _sut.DeleteAsync(folderId, true, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Folder not found");
+
+        _folderRepositoryMock.Verify(r => r.DeleteWithContentsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void DeleteAsync_ForceTrue_FolderOwnedByDifferentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var otherKbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Folder { Id = folderId, KnowledgeBaseId = otherKbId, Name = "Other Folder" });
+
+        // Act
+        var act = () => _sut.DeleteAsync(folderId, true, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("Folder does not belong to user");
+
+        _folderRepositoryMock.Verify(r => r.DeleteWithContentsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    #endregion
+
+    #region GetContentSummaryAsync Tests
+
+    [Test]
+    public async Task GetContentSummaryAsync_ValidRequest_ReturnsSummary()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+
+        var folder = new Folder { Id = folderId, KnowledgeBaseId = kbId, Name = "Test Folder" };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(folder);
+
+        _folderRepositoryMock
+            .Setup(r => r.GetContentSummaryAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((3, 2));
+
+        // Act
+        var result = await _sut.GetContentSummaryAsync(folderId, CancellationToken.None);
+
+        // Assert
+        result.ItemCount.Should().Be(3);
+        result.SubfolderCount.Should().Be(2);
+        result.HasContent.Should().BeTrue();
+    }
+
+    [Test]
+    public void GetContentSummaryAsync_NoCurrentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var folderId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns((Guid?)null);
+
+        // Act
+        var act = () => _sut.GetContentSummaryAsync(folderId, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User is not authenticated");
+
+        _kbRepositoryMock.Verify(r => r.GetOrCreateForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _folderRepositoryMock.Verify(r => r.GetContentSummaryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void GetContentSummaryAsync_FolderNotFound_ThrowsKeyNotFoundException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Folder?)null);
+
+        // Act
+        var act = () => _sut.GetContentSummaryAsync(folderId, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Folder not found");
+
+        _folderRepositoryMock.Verify(r => r.GetContentSummaryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void GetContentSummaryAsync_FolderOwnedByDifferentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var otherKbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Folder { Id = folderId, KnowledgeBaseId = otherKbId, Name = "Other Folder" });
+
+        // Act
+        var act = () => _sut.GetContentSummaryAsync(folderId, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("Folder does not belong to user");
+
+        _folderRepositoryMock.Verify(r => r.GetContentSummaryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task GetContentSummaryAsync_EmptyFolder_ReturnsSummaryWithHasContentFalse()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+
+        var folder = new Folder { Id = folderId, KnowledgeBaseId = kbId, Name = "Empty Folder" };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(folder);
+
+        _folderRepositoryMock
+            .Setup(r => r.GetContentSummaryAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((0, 0));
+
+        // Act
+        var result = await _sut.GetContentSummaryAsync(folderId, CancellationToken.None);
+
+        // Assert
+        result.ItemCount.Should().Be(0);
+        result.SubfolderCount.Should().Be(0);
+        result.HasContent.Should().BeFalse();
+    }
+
+    [Test]
+    public async Task GetContentSummaryAsync_FolderWithItemsOnly_ReturnsSummaryWithHasContentTrue()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+
+        var folder = new Folder { Id = folderId, KnowledgeBaseId = kbId, Name = "Items Folder" };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(folder);
+
+        _folderRepositoryMock
+            .Setup(r => r.GetContentSummaryAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((4, 0));
+
+        // Act
+        var result = await _sut.GetContentSummaryAsync(folderId, CancellationToken.None);
+
+        // Assert
+        result.ItemCount.Should().Be(4);
+        result.SubfolderCount.Should().Be(0);
+        result.HasContent.Should().BeTrue();
     }
 
     #endregion

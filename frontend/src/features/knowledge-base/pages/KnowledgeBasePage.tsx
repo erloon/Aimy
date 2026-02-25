@@ -11,6 +11,9 @@ import { Plus, Link2 } from 'lucide-react'
 import { KnowledgeItem } from '../types'
 import { useItem } from '../hooks/useKnowledgeBase'
 import { Separator } from "@/components/ui/separator"
+import { DeleteFolderDialog } from '../components/DeleteFolderDialog'
+import { getFolderContentSummary } from '../api/knowledge-base-api'
+import { useDeleteFolder } from '../hooks/useFolders'
 
 export function KnowledgeBasePage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
@@ -21,7 +24,9 @@ export function KnowledgeBasePage() {
   const [previewSource, setPreviewSource] = useState<{ id: string; name: string } | null>(null)
   const [viewingItemId, setViewingItemId] = useState<string | null>(null)
   const { data: viewingItem } = useItem(viewingItemId ?? '')
-
+  const [deletingFolder, setDeletingFolder] = useState<{ id: string; name: string } | null>(null)
+  
+  const { mutate: deleteFolder } = useDeleteFolder()
   const handleViewSource = (item: KnowledgeItem) => {
     if (item.sourceUploadId) {
       setPreviewSource({
@@ -41,6 +46,25 @@ export function KnowledgeBasePage() {
     setNoteEditorOpen(true)
   }
 
+  const handleDeleteFolder = async (folderId: string, folderName: string) => {
+    try {
+      const summary = await getFolderContentSummary(folderId)
+      if (!summary.hasContent) {
+        deleteFolder(
+          { id: folderId, force: false },
+          {
+            onSuccess: () => {
+              if (selectedFolderId === folderId) setSelectedFolderId(null)
+            },
+          }
+        )
+      } else {
+        setDeletingFolder({ id: folderId, name: folderName })
+      }
+    } catch (err) {
+      console.error('Failed to get folder summary:', err)
+    }
+  }
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* Left Sidebar - Folder Tree */}
@@ -61,6 +85,7 @@ export function KnowledgeBasePage() {
         <FolderTree
           selectedFolderId={selectedFolderId}
           onSelectFolder={setSelectedFolderId}
+          onDeleteFolder={handleDeleteFolder}
           className="flex-1 overflow-y-auto"
         />
       </div>
@@ -148,6 +173,18 @@ export function KnowledgeBasePage() {
         onOpenChange={(open) => !open && setPreviewSource(null)}
         fileId={previewSource?.id ?? null}
         fileName={previewSource?.name ?? null}
+      />
+
+      <DeleteFolderDialog
+        folderId={deletingFolder?.id ?? null}
+        folderName={deletingFolder?.name ?? ''}
+        open={!!deletingFolder}
+        onOpenChange={(open) => !open && setDeletingFolder(null)}
+        onDeleted={() => {
+          if (deletingFolder && selectedFolderId === deletingFolder.id) {
+            setSelectedFolderId(null)
+          }
+        }}
       />
     </div>
   )

@@ -1,8 +1,6 @@
 using Aimy.API.Models;
 using Aimy.Core.Application.DTOs.KnowledgeBase;
-using Aimy.Core.Application.Interfaces;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
-using Aimy.Core.Application.Interfaces.Upload;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Aimy.API.Endpoints;
@@ -42,9 +40,18 @@ public static class FolderEndpoints
             .Produces<NotFound>()
             .Produces(StatusCodes.Status500InternalServerError);
 
+        group.MapGet("/{id}/content-summary", GetContentSummary)
+            .WithName("GetFolderContentSummary")
+            .WithSummary("Get recursive content summary for a folder")
+            .Produces<FolderContentSummary>()
+            .Produces<UnauthorizedHttpResult>()
+            .Produces<NotFound>()
+            .Produces(StatusCodes.Status400BadRequest)
+            .Produces(StatusCodes.Status500InternalServerError);
+
         group.MapDelete("/{id}", DeleteFolder)
             .WithName("DeleteFolder")
-            .WithSummary("Delete a folder (must be empty)")
+            .WithSummary("Delete a folder (must be empty unless force=true)")
             .Produces(StatusCodes.Status204NoContent)
             .Produces<BadRequest<ErrorResponse>>()
             .Produces<UnauthorizedHttpResult>()
@@ -97,7 +104,7 @@ public static class FolderEndpoints
         {
             return TypedResults.Unauthorized();
         }
-        catch (KeyNotFoundException ex)
+        catch (KeyNotFoundException)
         {
             return TypedResults.NotFound();
         }
@@ -135,11 +142,12 @@ public static class FolderEndpoints
     private static async Task<Results<NoContent, BadRequest<ErrorResponse>, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> DeleteFolder(
         Guid id,
         IFolderService folderService,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool force = false)
     {
         try
         {
-            await folderService.DeleteAsync(id, ct);
+            await folderService.DeleteAsync(id, force, ct);
             return TypedResults.NoContent();
         }
         catch (UnauthorizedAccessException)
@@ -153,6 +161,34 @@ public static class FolderEndpoints
         catch (InvalidOperationException ex)
         {
             return TypedResults.BadRequest(new ErrorResponse { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return TypedResults.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
+    private static async Task<Results<Ok<FolderContentSummary>, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> GetContentSummary(
+        Guid id,
+        IFolderService folderService,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await folderService.GetContentSummaryAsync(id, ct);
+            return TypedResults.Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return TypedResults.Unauthorized();
+        }
+        catch (KeyNotFoundException)
+        {
+            return TypedResults.NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.Problem(detail: ex.Message, statusCode: StatusCodes.Status400BadRequest);
         }
         catch (Exception ex)
         {

@@ -11,6 +11,8 @@ public interface IFolderRepository
     Task<IReadOnlyList<Folder>> GetFolderTreeAsync(Guid knowledgeBaseId, CancellationToken ct);
     Task UpdateAsync(Folder folder, CancellationToken ct);
     Task DeleteAsync(Guid id, CancellationToken ct);
+    Task<(int ItemCount, int SubfolderCount)> GetContentSummaryAsync(Guid folderId, CancellationToken ct);
+    Task DeleteWithContentsAsync(Guid folderId, CancellationToken ct);
     Task<bool> HasChildrenAsync(Guid folderId, CancellationToken ct);
     Task<bool> HasItemsAsync(Guid folderId, CancellationToken ct);
 }

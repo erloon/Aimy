@@ -31,6 +31,9 @@ public class UploadConfiguration : IEntityTypeConfiguration<Upload>
         
         builder.Property(u => u.Metadata)
             .HasColumnType("jsonb");
+
+        builder.Property(u => u.SourceMarkdown)
+            .HasColumnType("text");
         
         builder.Property(u => u.DateUploaded)
             .IsRequired();

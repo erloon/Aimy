@@ -59,6 +59,11 @@ public class DataIngestionService(
             document = await processor.ProcessAsync(document, cancellationToken);
         }
 
+        upload.SourceMarkdown = string.Join(
+            Environment.NewLine,
+            document.Sections.Select(s => s.GetMarkdown()));
+        await uploadRepository.UpdateAsync(upload, cancellationToken);
+
         var uploadMetadata = ParseUploadMetadata(upload.Metadata);
 
         var chunks = components.Chunker.ProcessAsync(document, cancellationToken)

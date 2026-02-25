@@ -913,7 +913,15 @@ public class KnowledgeItemServiceTests
             Title = "Test Item",
             ItemType = KnowledgeItemType.Note,
             SourceUploadId = sourceUploadId,
-            Folder = folder
+            Folder = folder,
+            SourceUpload = new Upload
+            {
+                Id = sourceUploadId,
+                UserId = userId,
+                FileName = "test.pdf",
+                StoragePath = "test/path",
+                SourceMarkdown = "# Full Document\nParagraph one\nParagraph two"
+            }
         };
 
         var ingestion = new UploadIngestionResponse
@@ -947,7 +955,7 @@ public class KnowledgeItemServiceTests
         result.ChunkCount.Should().Be(2);
         result.Chunks.Should().NotBeNull();
         result.Chunks!.Should().HaveCount(2);
-        result.SourceMarkdown.Should().Be("Chunk one\n\nChunk two");
+        result.SourceMarkdown.Should().Be("# Full Document\nParagraph one\nParagraph two");
 
         _dataIngestionServiceMock.Verify(
             s => s.GetByUploadIdAsync(sourceUploadId, It.IsAny<CancellationToken>()),

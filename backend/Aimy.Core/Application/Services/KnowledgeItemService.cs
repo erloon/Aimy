@@ -265,7 +265,6 @@ public class KnowledgeItemService(
                 response.Summary = ingestion.Summary;
                 response.Chunks = ingestion.Chunks;
                 response.ChunkCount = ingestion.ChunkCount;
-                response.SourceMarkdown = string.Join("\n\n", ingestion.Chunks.Select(c => c.Content));
             }
         }
 
@@ -348,8 +347,8 @@ public class KnowledgeItemService(
             SourceUploadId = item.SourceUploadId,
             SourceUploadFileName = item.SourceUpload?.FileName,
             SourceUploadMetadata = item.SourceUpload?.Metadata,
+            SourceMarkdown = item.SourceUpload?.SourceMarkdown,
             CreatedAt = item.CreatedAt,
-            UpdatedAt = item.UpdatedAt
         };
     }
 }

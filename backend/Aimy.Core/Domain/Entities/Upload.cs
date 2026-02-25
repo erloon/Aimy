@@ -9,6 +9,7 @@ public class Upload
     public long FileSizeBytes { get; set; }
     public string? ContentType { get; set; }
     public string? Metadata { get; set; } // JSON string for key-value metadata
+    public string? SourceMarkdown { get; set; }
     public DateTime DateUploaded { get; set; }
 
     public Upload()

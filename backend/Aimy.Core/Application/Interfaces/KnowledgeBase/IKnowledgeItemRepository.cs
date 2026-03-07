@@ -20,6 +20,7 @@ public interface IKnowledgeItemRepository
         CancellationToken ct);
     Task<bool> ExistsBySourceUploadIdAsync(Guid sourceUploadId, CancellationToken ct);
     Task<IReadOnlyCollection<KnowledgeItem>> GetBySourceUploadIdAsync(Guid sourceUploadId, CancellationToken ct);
+    Task<IReadOnlyList<KnowledgeItem>> GetBySourceUploadIdsAsync(IReadOnlyCollection<Guid> sourceUploadIds, CancellationToken ct);
     Task UpdateAsync(KnowledgeItem item, CancellationToken ct);
     Task DeleteAsync(Guid id, CancellationToken ct);
 }

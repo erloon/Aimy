@@ -15,10 +15,22 @@ public class UploadProcessingWorker(
     {
         await foreach (var upload in reader.ReadAllAsync(stoppingToken))
         {
-            logger.LogWarning($"File: {upload.UploadId}");
-            using var scope = serviceScopeFactory.CreateScope();
-            var dataIngestionService = scope.ServiceProvider.GetRequiredService<IDataIngestionService>();
-            await dataIngestionService.IngestDataAsync(upload.UploadId, stoppingToken);
+            try
+            {
+                logger.LogInformation("Processing upload {UploadId}", upload.UploadId);
+                using var scope = serviceScopeFactory.CreateScope();
+                var dataIngestionService = scope.ServiceProvider.GetRequiredService<IDataIngestionService>();
+                await dataIngestionService.IngestDataAsync(upload.UploadId, stoppingToken);
+                logger.LogInformation("Completed upload processing for {UploadId}", upload.UploadId);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Upload processing failed for {UploadId}", upload.UploadId);
+            }
         }
     }
 }

@@ -14,8 +14,9 @@ public sealed class IngestionOptions
 
     public string CollectionName { get; set; } = "ingestion_embeddings";
 
-    public string? DistanceFunction { get; set; }
+    public string DistanceFunction { get; set; } = "CosineSimilarity";
 
+    // IndexKind defaults to IndexKind.Flat when not specified
     public string? IndexKind { get; set; }
 
     public bool IncrementalIngestion { get; set; } = true;

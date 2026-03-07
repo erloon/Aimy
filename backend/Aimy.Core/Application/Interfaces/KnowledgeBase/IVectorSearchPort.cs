@@ -1,6 +1,6 @@
 namespace Aimy.Core.Application.Interfaces.KnowledgeBase;
 
-public record VectorSearchResult(string SourceId, double Score);
+public record VectorSearchResult(string SourceId, double? Score);
 
 public interface IVectorSearchPort
 {

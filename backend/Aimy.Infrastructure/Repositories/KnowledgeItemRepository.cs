@@ -108,6 +108,16 @@ public class KnowledgeItemRepository(ApplicationDbContext context) : IKnowledgeI
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<KnowledgeItem>> GetBySourceUploadIdsAsync(IReadOnlyCollection<Guid> sourceUploadIds, CancellationToken ct)
+    {
+        return await context.KnowledgeItems
+            .Include(ki => ki.Folder!)
+            .ThenInclude(f => f!.KnowledgeBase)
+            .Include(ki => ki.SourceUpload)
+            .Where(ki => ki.SourceUploadId.HasValue && sourceUploadIds.Contains(ki.SourceUploadId!.Value))
+            .ToListAsync(ct);
+    }
+
     public async Task UpdateAsync(KnowledgeItem item, CancellationToken ct)
     {
         context.KnowledgeItems.Update(item);

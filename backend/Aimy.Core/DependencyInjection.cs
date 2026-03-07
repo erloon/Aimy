@@ -16,7 +16,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IKnowledgeBaseService, KnowledgeBaseService>();
         builder.Services.AddScoped<IFolderService, FolderService>();
         builder.Services.AddScoped<IKnowledgeItemService, KnowledgeItemService>();
-        
+        builder.Services.AddScoped<ISemanticSearchService, SemanticSearchService>();
         return builder;
     }
 }

@@ -2,6 +2,7 @@ using Aimy.Core.Application.Interfaces.Auth;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Application.Interfaces.Integrations;
+using Aimy.Core.Application.Services;
 using Aimy.Infrastructure.BackgroundJobs;
 using Aimy.Infrastructure.Integrations;
 using Aimy.Infrastructure.Data;
@@ -10,7 +11,9 @@ using Aimy.Infrastructure.Messaging;
 using Aimy.Infrastructure.Repositories;
 using Aimy.Infrastructure.Security;
 using Aimy.Infrastructure.Storage;
+using Aimy.Core.Application.Configuration;
 using Aimy.Infrastructure.Configuration;
+using Aimy.Infrastructure.SemanticSearch;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +52,9 @@ public static class DependencyInjection
         builder.Services.AddOptions<IngestionOptions>()
             .Bind(builder.Configuration.GetSection(IngestionOptions.SectionName));
 
+        builder.Services.AddOptions<SemanticSearchOptions>()
+            .Bind(builder.Configuration.GetSection(SemanticSearchOptions.SectionName));
+
         // Database
         builder.AddNpgsqlDbContext<ApplicationDbContext>(
             "aimydb",
@@ -57,7 +63,7 @@ public static class DependencyInjection
                 o.UseVector();
                 o.ConfigureDataSource(ds => ds.EnableDynamicJson());
             }));
-        builder.Services.AddPostgresVectorStore("aimydb");
+        // builder.Services.AddPostgresVectorStore("aimydb");
         // Repositorie
         builder.Services.AddScoped<IUserRepository, UserRepository>();
         builder.Services.AddScoped<IUploadRepository, UploadRepository>();
@@ -87,6 +93,10 @@ public static class DependencyInjection
         builder.Services.AddSingleton<IUploadQueueWriter>(channel);
         builder.Services.AddSingleton<IUploadQueueReader>(channel);
         builder.Services.AddHostedService<UploadProcessingWorker>();
+        
+        
+        builder.Services.AddScoped<IVectorSearchPort, VectorSearchPort>();
+        builder.Services.AddScoped<ISemanticSearchService, SemanticSearchService>();
         return builder;
     }
 }

@@ -30,6 +30,13 @@ public static class KnowledgeItemEndpoints
             .Produces<NotFound>()
             .Produces(StatusCodes.Status500InternalServerError);
 
+        group.MapGet("/simple-semantic-search", SimpleSemanticSearch)
+            .WithName("Simple Semantic Search")
+            .WithSummary("Search knowledge items")
+            .Produces<PagedResult<SemanticSearchResultResponse>>()
+            .Produces<UnauthorizedHttpResult>()
+            .Produces(StatusCodes.Status500InternalServerError);
+
         group.MapPost("/note", CreateNote)
             .WithName("CreateNote")
             .WithSummary("Create a new note (auto-creates markdown upload)")
@@ -71,7 +78,8 @@ public static class KnowledgeItemEndpoints
         return app;
     }
 
-    private static async Task<Results<Ok<PagedResult<ItemResponse>>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, ProblemHttpResult>> SearchItems(
+    private static async Task<Results<Ok<PagedResult<ItemResponse>>, BadRequest<ErrorResponse>, UnauthorizedHttpResult,
+        ProblemHttpResult>> SearchItems(
         IKnowledgeItemService itemService,
         Guid? folderId,
         bool includeSubFolders,
@@ -118,18 +126,28 @@ public static class KnowledgeItemEndpoints
         }
     }
 
-    private static async Task<Results<Ok<ItemResponse>, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> GetItem(
-        Guid id,
-        IKnowledgeItemService itemService,
-        CancellationToken ct)
+    private static async
+        Task<Results<Ok<PagedResult<SemanticSearchResultResponse>>, BadRequest<ErrorResponse>, UnauthorizedHttpResult,
+            ProblemHttpResult>> SimpleSemanticSearch(
+            ISemanticSearchService semanticSearchService,
+            string query,
+            int page = 1,
+            int pageSize = 10,
+            CancellationToken ct = default)
     {
+        if (page < 1)
+        {
+            return TypedResults.BadRequest(new ErrorResponse { Error = "Page must be at least 1" });
+        }
+
+        if (pageSize < 1 || pageSize > 100)
+        {
+            return TypedResults.BadRequest(new ErrorResponse { Error = "PageSize must be between 1 and 100" });
+        }
+
         try
         {
-            var result = await itemService.GetByIdAsync(id, ct);
-            if (result is null)
-            {
-                return TypedResults.NotFound();
-            }
+            var result = await semanticSearchService.SearchAsync(query, page, pageSize, ct);
             return TypedResults.Ok(result);
         }
         catch (UnauthorizedAccessException)
@@ -142,7 +160,33 @@ public static class KnowledgeItemEndpoints
         }
     }
 
-    private static async Task<Results<Created<ItemResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> CreateNote(
+    private static async Task<Results<Ok<ItemResponse>, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> GetItem(
+        Guid id,
+        IKnowledgeItemService itemService,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await itemService.GetByIdAsync(id, ct);
+            if (result is null)
+            {
+                return TypedResults.NotFound();
+            }
+
+            return TypedResults.Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return TypedResults.Unauthorized();
+        }
+        catch (Exception ex)
+        {
+            return TypedResults.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
+    private static async Task<Results<Created<ItemResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, NotFound
+        , ProblemHttpResult>> CreateNote(
         CreateNoteRequest request,
         IKnowledgeItemService itemService,
         CancellationToken ct)
@@ -166,10 +210,12 @@ public static class KnowledgeItemEndpoints
         }
     }
 
-    private static async Task<Results<Created<ItemResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> CreateFromUpload(
-        CreateItemFromUploadRequest request,
-        IKnowledgeItemService itemService,
-        CancellationToken ct)
+    private static async
+        Task<Results<Created<ItemResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, NotFound,
+            ProblemHttpResult>> CreateFromUpload(
+            CreateItemFromUploadRequest request,
+            IKnowledgeItemService itemService,
+            CancellationToken ct)
     {
         try
         {
@@ -190,7 +236,8 @@ public static class KnowledgeItemEndpoints
         }
     }
 
-    private static async Task<Results<Ok<ItemResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, NotFound, ProblemHttpResult>> UpdateItem(
+    private static async Task<Results<Ok<ItemResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, NotFound,
+        ProblemHttpResult>> UpdateItem(
         Guid id,
         UpdateItemRequest request,
         IKnowledgeItemService itemService,

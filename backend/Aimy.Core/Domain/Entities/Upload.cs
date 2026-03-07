@@ -10,6 +10,10 @@ public class Upload
     public string? ContentType { get; set; }
     public string? Metadata { get; set; } // JSON string for key-value metadata
     public string? SourceMarkdown { get; set; }
+    public UploadIngestionStatus IngestionStatus { get; set; }
+    public string? IngestionError { get; set; }
+    public DateTime? IngestionStartedAt { get; set; }
+    public DateTime? IngestionCompletedAt { get; set; }
     public DateTime DateUploaded { get; set; }
 
     public bool IsMarkdownUpload => HasMarkdownContentType() || HasMarkdownFileExtension();
@@ -17,6 +21,7 @@ public class Upload
     public Upload()
     {
         Id = Guid.NewGuid();
+        IngestionStatus = UploadIngestionStatus.Pending;
         DateUploaded = DateTime.UtcNow;
     }
 

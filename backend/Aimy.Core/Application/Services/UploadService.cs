@@ -13,7 +13,7 @@ public class UploadService(
     IStorageService storageService,
     IUploadRepository uploadRepository,
     ICurrentUserService currentUserService,
-    IUploadQueueWriter queueWriter,
+    IUploadKnowledgeSyncService uploadKnowledgeSyncService,
     IKnowledgeItemRepository knowledgeItemRepository,
     IDataIngestionService dataIngestionService,
     ILogger<UploadService> logger)
@@ -36,6 +36,7 @@ public class UploadService(
         var displayFileName = await GetUniqueFileNameAsync(userId.Value, fileName, ct);
 
         var fileSizeBytes = fileStream.Length;
+        var normalizedMetadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(metadata);
         var storagePath = await storageService.UploadAsync(
             userId.Value,
             displayFileName,
@@ -50,11 +51,35 @@ public class UploadService(
             StoragePath = storagePath,
             FileSizeBytes = fileSizeBytes,
             ContentType = contentType,
-            Metadata = metadata
+            Metadata = normalizedMetadata,
+            IngestionStatus = UploadIngestionStatus.Pending,
+            IngestionError = null,
+            IngestionStartedAt = null,
+            IngestionCompletedAt = null
         };
 
-        var savedUpload = await uploadRepository.AddAsync(upload, ct);  
-        await queueWriter.WriteAsync(new UploadToProcess(savedUpload.Id), ct);
+        Domain.Entities.Upload savedUpload;
+        try
+        {
+            savedUpload = await uploadRepository.AddAsync(upload, ct);
+        }
+        catch
+        {
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
+
+        try
+        {
+            await uploadKnowledgeSyncService.EnqueueIngestionAsync(savedUpload.Id, ct);
+        }
+        catch
+        {
+            await uploadRepository.DeleteAsync(savedUpload.Id, ct);
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
+
         logger.LogInformation("File uploaded: {UploadId} ({FileName})", savedUpload.Id, savedUpload.FileName);
         return await BuildUploadFileResponseAsync(savedUpload, ct);
     }
@@ -135,21 +160,11 @@ public class UploadService(
         if (upload.UserId != userId.Value)
             throw new UnauthorizedAccessException("User does not have access to this file");
 
-        upload.Metadata = metadata;
-        await uploadRepository.UpdateAsync(upload, ct);
-        await dataIngestionService.UpdateMetadataByUploadIdAsync(upload.Id, metadata, ct);
-
-        var linkedItems = await knowledgeItemRepository.GetBySourceUploadIdAsync(upload.Id, ct) ?? [];
-        foreach (var linkedItem in linkedItems)
-        {
-            linkedItem.Metadata = metadata;
-            linkedItem.UpdatedAt = DateTime.UtcNow;
-            await knowledgeItemRepository.UpdateAsync(linkedItem, ct);
-        }
+        await uploadKnowledgeSyncService.SyncMetadataAsync(upload, metadata, ct);
 
 
         logger.LogInformation("Metadata updated for file {UploadId}, {LinkedItemCount} linked items updated",
-            id, linkedItems.Count);
+            id, (await knowledgeItemRepository.GetBySourceUploadIdAsync(upload.Id, ct)).Count);
         return await BuildUploadFileResponseAsync(upload, ct);
     }
 
@@ -166,6 +181,10 @@ public class UploadService(
             SizeBytes = upload.FileSizeBytes,
             UploadedAt = upload.DateUploaded,
             Metadata = upload.Metadata,
+            IngestionStatus = upload.IngestionStatus.ToString(),
+            IngestionError = upload.IngestionError,
+            IngestionStartedAt = upload.IngestionStartedAt,
+            IngestionCompletedAt = upload.IngestionCompletedAt,
             Ingestion = ingestion
         };
     }

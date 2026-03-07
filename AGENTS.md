@@ -2,6 +2,8 @@
 
 ## OVERVIEW
 
+You are an expert full-stack engineer and software architect specializing in .NET 10 Minimal APIs and React/Electron applications.
+
 Desktop and web application with Electron/React frontend + .NET 10 backend, orchestrated via .NET Aspire. Early-stage project using Hexagonal Architecture and shadcn/ui.
 
 ## STRUCTURE
@@ -11,13 +13,8 @@ Aimy/
 ├── aimy.sln                 # .NET solution
 ├── frontend/                # Electron + React + Vite → frontend/AGENTS.md
 ├── backend/                 # .NET 10 → backend/AGENTS.md
-│   ├── Aimy.API/            # ASP.NET Core API (entry point)
-│   ├── Aimy.Core/           # Domain (entities, ports, services)
-│   └── Aimy.Infrastructure/ # Adapters (EF Core, external libs)
-│   └── Aimy.UnitTests/      # Unit tests
-└── aspire/                  # .NET Aspire orchestration
-    ├── Aimy.AppHost/        # Container orchestration
-    └── Aimy.ServiceDefaults/ # Telemetry, health, resilience
+├── aspire/                  # .NET Aspire orchestration
+└── docs/                    # Project documentation structure
 ```
 
 ## SKILLS (Project-Specific)
@@ -39,23 +36,37 @@ Aimy/
 | UI Components | `frontend/src/components/ui/AGENTS.md` | shadcn/ui patterns                    |
 | Backend       | `backend/AGENTS.md`                    | .NET architecture, skills reference   |
 
+## NEW FEATURE WORKFLOW
+
+1. **Brainstorm**: Check `docs/` for the current project state. Discuss with user to finalize description and requirements.
+2. **Plan**: Create implementation plan based on `docs/` and discussion.
+3. **Implement**: Write code + **unit tests** (mandatory).
+4. **Test**: Run app via `aspire run`. Use Aspire MCP server and `playwright` to test UI.
+5. **Document**: Update `docs/` following conventions.
+6. **Complete**: Task ends only when unit tests pass and feature is verified.
+
+## CRITICAL RULES
+
+- **DO NOT** use placeholders (e.g., `// TODO: Implement later`) in generated code. Always provide fully working implementations.
+- **DO NOT** modify anything in `docs/` without first verifying the actual codebase state.
+- **NEVER** skip unit testing - code without tests is considered unfinished.
+
 ## GENERAL CONVENTIONS
-
-**All Layers:**
-- Strict typing (no `as any`, `@ts-ignore`, dynamic)
-- Nullable enabled everywhere
-- No business logic in entry points (Program.cs, main.ts)
-
-**Dependency Direction:**
-```
-API → Infrastructure → Core ← Tests
-```
-Core has ZERO external dependencies.
 
 **Naming:**
 - PascalCase for C# public members
 - camelCase for TypeScript
 - kebab-case for files
+
+**Testing:**
+- Backend tests: NUnit + Moq + FluentAssertions
+- Frontend tests: Vitest + Testing Library
+
+## CREDENTIALS
+
+**UI Login:**
+- **Username:** `admin`
+- **Password:** `admin123`
 
 ## COMMANDS
 
@@ -74,24 +85,6 @@ cd frontend && npm run build
 dotnet build
 ```
 
-## ANTI-PATTERNS (PROJECT-WIDE)
-
-| Avoid                        | Reason                          |
-| ---------------------------- | ------------------------------- |
-| External deps in Core        | Violates hexagonal architecture |
-| `as any` / `@ts-ignore`      | Bypasses type safety            |
-| Business logic in Program.cs | Violates separation of concerns |
-| EF attributes on entities    | ORM leak into domain            |
-| Controllers                  | Use minimal API                 |
-
-## NOTES
-
-- No CI/CD configured yet
-- Frontend expects backend at localhost (Aspire handles in dev)
-- Electron packages to `frontend/release/` on build
-
----
-
 ## DOCUMENTATION STANDARDS
 
 We follow a strict documentation-first approach. All features and architectural decisions must be documented in `docs/`.
@@ -106,6 +99,7 @@ We follow a strict documentation-first approach. All features and architectural 
 | `docs/ui/components/`        | Reusable components & design system    |
 | `docs/ui/features/`          | Feature specs (UI flows & interaction) |
 | `docs/general/plans/`        | RFCs, roadmaps, high-level designs     |
+| `docs/general/plans/archive/`| Completed, rejected, or obsolete plans |
 | `docs/general/standards/`    | Coding standards & conventions         |
 
 ### Documentation Workflow

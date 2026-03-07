@@ -21,6 +21,8 @@ public class DataIngestionService(
 {
     public async Task IngestDataAsync(Guid uploadId, CancellationToken cancellationToken)
     {
+        await DeleteByUploadIdAsync(uploadId, cancellationToken);
+
         var upload = await uploadRepository.GetByIdAsync(uploadId, cancellationToken);
         if (upload is null)
         {

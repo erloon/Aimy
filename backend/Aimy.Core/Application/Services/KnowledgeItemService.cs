@@ -2,7 +2,6 @@ using Aimy.Core.Application.Interfaces.Auth;
 using Aimy.Core.Application.Interfaces.Ingestion;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Application.Interfaces.Upload;
-using Aimy.Core.Application.DTOs.Upload;
 
 namespace Aimy.Core.Application.Services;
 
@@ -18,7 +17,7 @@ public class KnowledgeItemService(
     IDataIngestionService dataIngestionService,
     IStorageService storageService,
     ICurrentUserService currentUserService,
-    IUploadQueueWriter queueWriter,
+    IUploadKnowledgeSyncService uploadKnowledgeSyncService,
     ILogger<KnowledgeItemService> logger) : IKnowledgeItemService
 {
     public async Task<ItemResponse> CreateNoteAsync(CreateNoteRequest request, CancellationToken ct)
@@ -41,6 +40,7 @@ public class KnowledgeItemService(
         using var stream = new MemoryStream(contentBytes);
         stream.Position = 0;
 
+        var normalizedMetadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
         var storagePath = await storageService.UploadAsync(
             userId,
             $"{request.Title}.md",
@@ -55,28 +55,58 @@ public class KnowledgeItemService(
             StoragePath = storagePath,
             FileSizeBytes = contentBytes.Length,
             ContentType = "text/markdown",
-            Metadata = request.Metadata
+            Metadata = normalizedMetadata,
+            IngestionStatus = UploadIngestionStatus.Pending,
+            IngestionError = null,
+            IngestionStartedAt = null,
+            IngestionCompletedAt = null
         };
 
-        var savedUpload = await uploadRepository.AddAsync(upload, ct);
-        await queueWriter.WriteAsync(new UploadToProcess(savedUpload.Id), ct);
-
-        // Create knowledge item linked to upload
-        // Note: If this fails, we keep the upload (no rollback) as per plan
-        var item = new KnowledgeItem
+        Upload savedUpload;
+        try
         {
-            FolderId = request.FolderId,
-            Title = request.Title,
-            ItemType = KnowledgeItemType.Note,
-            Content = request.Content,
-            Metadata = request.Metadata,
-            SourceUploadId = savedUpload.Id
-        };
+            savedUpload = await uploadRepository.AddAsync(upload, ct);
+        }
+        catch
+        {
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
 
-        var savedItem = await itemRepository.AddAsync(item, ct);
-        return MapToResponse(savedItem);
+        try
+        {
+            await uploadKnowledgeSyncService.EnqueueIngestionAsync(savedUpload.Id, ct);
+        }
+        catch
+        {
+            await uploadRepository.DeleteAsync(savedUpload.Id, ct);
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
 
-        logger.LogInformation("Note created: {ItemId} ({Title})", savedItem.Id, savedItem.Title);
+        try
+        {
+            var item = new KnowledgeItem
+            {
+                FolderId = request.FolderId,
+                Title = request.Title,
+                ItemType = KnowledgeItemType.Note,
+                Content = request.Content,
+                Metadata = normalizedMetadata,
+                SourceUploadId = savedUpload.Id
+            };
+
+            var savedItem = await itemRepository.AddAsync(item, ct);
+            logger.LogInformation("Note created: {ItemId} ({Title})", savedItem.Id, savedItem.Title);
+            return MapToResponse(savedItem);
+        }
+        catch
+        {
+            await uploadRepository.DeleteAsync(savedUpload.Id, ct);
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
+
     }
 
     public async Task<ItemResponse> CreateFromUploadAsync(CreateItemFromUploadRequest request, CancellationToken ct)
@@ -101,15 +131,14 @@ public class KnowledgeItemService(
         if (upload.UserId != userId)
             throw new UnauthorizedAccessException("Upload does not belong to user");
 
-        var resolvedMetadata = string.IsNullOrWhiteSpace(request.Metadata)
+        var canonicalRequestMetadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
+        var resolvedMetadata = string.IsNullOrWhiteSpace(canonicalRequestMetadata)
             ? upload.Metadata
-            : request.Metadata;
+            : canonicalRequestMetadata;
 
-        if (!string.IsNullOrWhiteSpace(request.Metadata))
+        if (!string.IsNullOrWhiteSpace(canonicalRequestMetadata))
         {
-            upload.Metadata = request.Metadata;
-            await uploadRepository.UpdateAsync(upload, ct);
-            await dataIngestionService.UpdateMetadataByUploadIdAsync(upload.Id, upload.Metadata, ct);
+            await uploadKnowledgeSyncService.SyncMetadataAsync(upload, canonicalRequestMetadata, ct);
         }
 
         var item = new KnowledgeItem
@@ -123,8 +152,6 @@ public class KnowledgeItemService(
 
         var savedItem = await itemRepository.AddAsync(item, ct);
         return MapToResponse(savedItem);
-
-        logger.LogInformation("Item created from upload: {ItemId} ({Title})", savedItem.Id, savedItem.Title);
     }
 
     public async Task<ItemResponse> UpdateAsync(Guid id, UpdateItemRequest request, CancellationToken ct)
@@ -177,13 +204,12 @@ public class KnowledgeItemService(
             sourceUpload.StoragePath = newStoragePath;
             sourceUpload.FileSizeBytes = contentBytes.Length;
             sourceUpload.ContentType = "text/markdown";
-            await dataIngestionService.DeleteByUploadIdAsync(sourceUpload.Id, ct);
-            await queueWriter.WriteAsync(new UploadToProcess(sourceUpload.Id), ct);
+            await uploadKnowledgeSyncService.ReingestAsync(sourceUpload.Id, ct);
         }
 
         if (sourceUpload is not null && metadataChanged)
         {
-            sourceUpload.Metadata = request.Metadata;
+            sourceUpload.Metadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
         }
 
         if (sourceUpload is not null)
@@ -192,7 +218,7 @@ public class KnowledgeItemService(
 
             if (metadataChanged)
             {
-                await dataIngestionService.UpdateMetadataByUploadIdAsync(sourceUpload.Id, sourceUpload.Metadata, ct);
+                await uploadKnowledgeSyncService.SyncMetadataAsync(sourceUpload, sourceUpload.Metadata, ct);
             }
         }
 
@@ -201,7 +227,7 @@ public class KnowledgeItemService(
         if (request.Content is not null)
             item.Content = request.Content;
         if (request.Metadata is not null)
-            item.Metadata = request.Metadata;
+            item.Metadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
         if (request.FolderId.HasValue)
         {
             // Validate new folder ownership
@@ -218,8 +244,6 @@ public class KnowledgeItemService(
 
         await itemRepository.UpdateAsync(item, ct);
         return MapToResponse(item);
-
-        logger.LogInformation("Knowledge item updated: {ItemId}", id);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct)
@@ -329,8 +353,6 @@ public class KnowledgeItemService(
             PageSize = result.PageSize,
             TotalCount = result.TotalCount
         };
-
-        logger.LogInformation("Search completed: {TotalCount} results found", result.TotalCount);
     }
 
     private static ItemResponse MapToResponse(KnowledgeItem item)

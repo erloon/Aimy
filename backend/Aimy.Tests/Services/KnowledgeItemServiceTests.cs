@@ -24,7 +24,7 @@ public class KnowledgeItemServiceTests
     private Mock<IStorageService> _storageServiceMock = null!;
     private Mock<ICurrentUserService> _currentUserServiceMock = null!;
     private KnowledgeItemService _sut = null!;
-    private Mock<IUploadQueueWriter> _queueWriterMock = null!;
+    private Mock<IUploadKnowledgeSyncService> _uploadKnowledgeSyncServiceMock = null!;
 
     [SetUp]
     public void Setup()
@@ -36,7 +36,7 @@ public class KnowledgeItemServiceTests
         _dataIngestionServiceMock = new Mock<IDataIngestionService>();
         _storageServiceMock = new Mock<IStorageService>();
         _currentUserServiceMock = new Mock<ICurrentUserService>();
-        _queueWriterMock = new Mock<IUploadQueueWriter>();
+        _uploadKnowledgeSyncServiceMock = new Mock<IUploadKnowledgeSyncService>();
         _sut = new KnowledgeItemService(
             _kbRepositoryMock.Object,
             _folderRepositoryMock.Object,
@@ -45,15 +45,28 @@ public class KnowledgeItemServiceTests
             _dataIngestionServiceMock.Object,
             _storageServiceMock.Object,
             _currentUserServiceMock.Object,
-            _queueWriterMock.Object,
+            _uploadKnowledgeSyncServiceMock.Object,
             NullLogger<KnowledgeItemService>.Instance);
 
         _dataIngestionServiceMock
             .Setup(s => s.UpdateMetadataByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        _queueWriterMock
-            .Setup(q => q.WriteAsync(It.IsAny<UploadToProcess>(), It.IsAny<CancellationToken>()))
+        _uploadKnowledgeSyncServiceMock
+            .Setup(s => s.EnqueueIngestionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+
+        _uploadKnowledgeSyncServiceMock
+            .Setup(s => s.ReingestAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _uploadKnowledgeSyncServiceMock
+            .Setup(s => s.SyncMetadataAsync(It.IsAny<Upload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _uploadKnowledgeSyncServiceMock
+            .Setup(s => s.NormalizeMetadataPayload(It.IsAny<string?>()))
+            .Returns((string? input) => input);
+
     }
 
     #region CreateNoteAsync Tests
@@ -133,7 +146,7 @@ public class KnowledgeItemServiceTests
             It.IsAny<CancellationToken>()), Times.Once);
         _itemRepositoryMock.Verify(r => r.AddAsync(It.IsAny<KnowledgeItem>(), It.IsAny<CancellationToken>()), Times.Once);
         streamPositionDuringUpload.Should().Be(0);
-        _queueWriterMock.Verify(q => q.WriteAsync(It.Is<UploadToProcess>(u => u.UploadId == uploadId), It.IsAny<CancellationToken>()), Times.Once);
+        _uploadKnowledgeSyncServiceMock.Verify(s => s.EnqueueIngestionAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
@@ -276,10 +289,12 @@ public class KnowledgeItemServiceTests
         result.SourceUploadId.Should().Be(uploadId);
 
         _itemRepositoryMock.Verify(r => r.AddAsync(It.IsAny<KnowledgeItem>(), It.IsAny<CancellationToken>()), Times.Once);
-        _uploadRepositoryMock.Verify(r => r.UpdateAsync(
-            It.Is<Upload>(u => u.Id == uploadId && u.Metadata == "[\"document\"]"),
-            It.IsAny<CancellationToken>()), Times.Once);
-        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(uploadId, "[\"document\"]", It.IsAny<CancellationToken>()), Times.Once);
+        _uploadKnowledgeSyncServiceMock.Verify(
+            s => s.SyncMetadataAsync(
+                It.Is<Upload>(u => u.Id == uploadId),
+                "[\"document\"]",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Test]
@@ -330,7 +345,9 @@ public class KnowledgeItemServiceTests
         result.Title.Should().Be("document.pdf");
         result.Metadata.Should().Be("[\"from-upload\"]");
         _uploadRepositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()), Times.Never);
-        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+        _uploadKnowledgeSyncServiceMock.Verify(
+            s => s.SyncMetadataAsync(It.IsAny<Upload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Test]
@@ -539,8 +556,7 @@ public class KnowledgeItemServiceTests
                 && u.StoragePath == newStoragePath
                 && u.Metadata == "[\"updated\"]"),
             It.IsAny<CancellationToken>()), Times.Once);
-        _dataIngestionServiceMock.Verify(s => s.DeleteByUploadIdAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
-        _queueWriterMock.Verify(q => q.WriteAsync(It.Is<UploadToProcess>(u => u.UploadId == uploadId), It.IsAny<CancellationToken>()), Times.Once);
+        _uploadKnowledgeSyncServiceMock.Verify(s => s.ReingestAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
@@ -601,7 +617,12 @@ public class KnowledgeItemServiceTests
         _uploadRepositoryMock.Verify(r => r.UpdateAsync(
             It.Is<Upload>(u => u.Id == uploadId && u.Metadata == "[\"file-updated\"]"),
             It.IsAny<CancellationToken>()), Times.Once);
-        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(uploadId, "[\"file-updated\"]", It.IsAny<CancellationToken>()), Times.Once);
+        _uploadKnowledgeSyncServiceMock.Verify(
+            s => s.SyncMetadataAsync(
+                It.Is<Upload>(u => u.Id == uploadId),
+                "[\"file-updated\"]",
+                It.IsAny<CancellationToken>()),
+            Times.Once);
         _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _storageServiceMock.Verify(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }

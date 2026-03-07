@@ -28,4 +28,8 @@ public sealed class IngestionOptions
     public int SummaryMaxWordCount { get; set; } = 100;
 
     public string VectorStoreProvider { get; set; } = "pgvector";
+
+    public int MaxJobAttempts { get; set; } = 3;
+
+    public int RetryDelaySeconds { get; set; } = 30;
 }

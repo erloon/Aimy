@@ -7,7 +7,6 @@ using Aimy.Infrastructure.BackgroundJobs;
 using Aimy.Infrastructure.Integrations;
 using Aimy.Infrastructure.Data;
 using Aimy.Infrastructure.Ingestion;
-using Aimy.Infrastructure.Messaging;
 using Aimy.Infrastructure.Repositories;
 using Aimy.Infrastructure.Security;
 using Aimy.Infrastructure.Storage;
@@ -52,6 +51,9 @@ public static class DependencyInjection
         builder.Services.AddOptions<IngestionOptions>()
             .Bind(builder.Configuration.GetSection(IngestionOptions.SectionName));
 
+        builder.Services.AddOptions<IngestionJobOptions>()
+            .Bind(builder.Configuration.GetSection(IngestionJobOptions.SectionName));
+
         builder.Services.AddOptions<SemanticSearchOptions>()
             .Bind(builder.Configuration.GetSection(SemanticSearchOptions.SectionName));
 
@@ -67,6 +69,7 @@ public static class DependencyInjection
         // Repositorie
         builder.Services.AddScoped<IUserRepository, UserRepository>();
         builder.Services.AddScoped<IUploadRepository, UploadRepository>();
+        builder.Services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();
         
         // Security adapters
         builder.Services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
@@ -88,10 +91,6 @@ public static class DependencyInjection
         builder.Services.AddScoped<IFolderRepository, FolderRepository>();
         builder.Services.AddScoped<IKnowledgeItemRepository, KnowledgeItemRepository>();
         
-        // Messaging
-        var channel = new InMemoryUploadChannel();
-        builder.Services.AddSingleton<IUploadQueueWriter>(channel);
-        builder.Services.AddSingleton<IUploadQueueReader>(channel);
         builder.Services.AddHostedService<UploadProcessingWorker>();
         
         

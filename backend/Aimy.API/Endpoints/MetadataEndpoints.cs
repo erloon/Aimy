@@ -1,6 +1,7 @@
 using Aimy.API.Models;
 using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Domain.Entities;
+using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace Aimy.API.Endpoints;
@@ -20,14 +21,14 @@ public static class MetadataEndpoints
         group.MapGet("/keys", GetKeys)
             .WithName("GetMetadataKeys")
             .WithSummary("List metadata key definitions")
-            .Produces(StatusCodes.Status200OK)
+            .Produces<MetadataKeysResponse>(StatusCodes.Status200OK)
             .Produces<UnauthorizedHttpResult>(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status500InternalServerError);
 
         group.MapGet("/values", GetValues)
             .WithName("GetMetadataValues")
             .WithSummary("List metadata value suggestions by key")
-            .Produces(StatusCodes.Status200OK)
+            .Produces<MetadataValuesResponse>(StatusCodes.Status200OK)
             .Produces<BadRequest<ErrorResponse>>(StatusCodes.Status400BadRequest)
             .Produces<UnauthorizedHttpResult>(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status500InternalServerError);
@@ -36,7 +37,8 @@ public static class MetadataEndpoints
             .WithName("NormalizeMetadata")
             .WithSummary("Normalize metadata payload")
             .Accepts<MetadataNormalizeRequest>("application/json")
-            .Produces(StatusCodes.Status200OK)
+            .Produces<BadRequest<ErrorResponse>>(StatusCodes.Status400BadRequest)
+            .Produces<MetadataNormalizeResponse>(StatusCodes.Status200OK)
             .Produces<UnauthorizedHttpResult>(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status500InternalServerError);
 
@@ -44,7 +46,7 @@ public static class MetadataEndpoints
             .WithName("UpsertMetadataDefinition")
             .WithSummary("Create or update metadata definition")
             .Accepts<MetadataDefinitionUpsertRequest>("application/json")
-            .Produces(StatusCodes.Status200OK)
+            .Produces<MetadataDefinitionResponse>(StatusCodes.Status200OK)
             .Produces<BadRequest<ErrorResponse>>(StatusCodes.Status400BadRequest)
             .Produces<UnauthorizedHttpResult>(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status500InternalServerError);
@@ -53,7 +55,7 @@ public static class MetadataEndpoints
             .WithName("UpsertMetadataValueOption")
             .WithSummary("Create or update metadata value option")
             .Accepts<MetadataValueOptionUpsertRequest>("application/json")
-            .Produces(StatusCodes.Status200OK)
+            .Produces<MetadataValueOptionResponse>(StatusCodes.Status200OK)
             .Produces<BadRequest<ErrorResponse>>(StatusCodes.Status400BadRequest)
             .Produces<UnauthorizedHttpResult>(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status500InternalServerError);
@@ -61,25 +63,28 @@ public static class MetadataEndpoints
         return app;
     }
 
-    private static async Task<Results<Ok<object>, UnauthorizedHttpResult, ProblemHttpResult>> GetKeys(
+    private static async Task<Results<Ok<MetadataKeysResponse>, UnauthorizedHttpResult, ProblemHttpResult>> GetKeys(
         IUploadKnowledgeSyncService service,
         CancellationToken ct)
     {
         try
         {
             var definitions = await service.GetMetadataDefinitionsAsync(ct);
-            var payload = definitions.Select(definition => new
+            var payload = new MetadataKeysResponse
             {
-                key = definition.Key,
-                label = definition.Label,
-                type = definition.ValueType,
-                filterable = definition.Filterable,
-                allowFreeText = definition.AllowFreeText,
-                required = definition.Required,
-                policy = definition.Policy.ToString()
-            });
+                Items = definitions.Select(definition => new MetadataKeyResponseItem
+                {
+                    Key = definition.Key,
+                    Label = definition.Label,
+                    Type = definition.ValueType,
+                    Filterable = definition.Filterable,
+                    AllowFreeText = definition.AllowFreeText,
+                    Required = definition.Required,
+                    Policy = definition.Policy.ToString()
+                }).ToList()
+            };
 
-            return TypedResults.Ok<object>(new { items = payload });
+            return TypedResults.Ok(payload);
         }
         catch (UnauthorizedAccessException)
         {
@@ -94,7 +99,7 @@ public static class MetadataEndpoints
         }
     }
 
-    private static async Task<Results<Ok<object>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, ProblemHttpResult>> GetValues(
+    private static async Task<Results<Ok<MetadataValuesResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, ProblemHttpResult>> GetValues(
         string? key,
         string? q,
         IUploadKnowledgeSyncService service,
@@ -108,19 +113,19 @@ public static class MetadataEndpoints
         try
         {
             var suggestions = await service.GetMetadataValueSuggestionsAsync(key, q, ct);
-            var payload = new
+            var payload = new MetadataValuesResponse
             {
-                key = suggestions.Key,
-                items = suggestions.Items.Select(item => new
+                Key = suggestions.Key,
+                Items = suggestions.Items.Select(item => new MetadataValueSuggestionResponseItem
                 {
-                    value = item.Value,
-                    label = item.Label,
-                    aliases = item.Aliases,
-                    matchType = item.MatchType
-                })
+                    Value = item.Value,
+                    Label = item.Label,
+                    Aliases = item.Aliases,
+                    MatchType = item.MatchType
+                }).ToList()
             };
 
-            return TypedResults.Ok<object>(payload);
+            return TypedResults.Ok(payload);
         }
         catch (UnauthorizedAccessException)
         {
@@ -135,27 +140,37 @@ public static class MetadataEndpoints
         }
     }
 
-    private static async Task<Results<Ok<object>, UnauthorizedHttpResult, ProblemHttpResult>> Normalize(
+    private static async Task<Results<Ok<MetadataNormalizeResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, ProblemHttpResult>> Normalize(
         MetadataNormalizeRequest request,
+        IValidator<MetadataNormalizeRequest> validator,
         IUploadKnowledgeSyncService service,
         CancellationToken ct)
     {
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+        {
+            var errors = string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage));
+            return TypedResults.BadRequest(new ErrorResponse { Error = errors });
+        }
+
         try
         {
             var result = await service.NormalizeMetadataAsync(request.Metadata, request.DefaultPolicy, ct);
-            return TypedResults.Ok<object>(new
+            var payload = new MetadataNormalizeResponse
             {
-                metadata = result.NormalizedMetadata,
-                hasChanges = result.HasChanges,
-                warnings = result.Warnings.Select(warning => new
+                Metadata = result.NormalizedMetadata,
+                HasChanges = result.HasChanges,
+                Warnings = result.Warnings.Select(warning => new MetadataNormalizeWarningResponse
                 {
-                    key = warning.Key,
-                    message = warning.Message,
-                    inputValue = warning.InputValue,
-                    resolvedValue = warning.ResolvedValue,
-                    matchType = warning.MatchType.ToString()
-                })
-            });
+                    Key = warning.Key,
+                    Message = warning.Message,
+                    InputValue = warning.InputValue,
+                    ResolvedValue = warning.ResolvedValue,
+                    MatchType = warning.MatchType.ToString()
+                }).ToList()
+            };
+
+            return TypedResults.Ok(payload);
         }
         catch (UnauthorizedAccessException)
         {
@@ -170,14 +185,17 @@ public static class MetadataEndpoints
         }
     }
 
-    private static async Task<Results<Ok<object>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, ProblemHttpResult>> UpsertDefinition(
+    private static async Task<Results<Ok<MetadataDefinitionResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, ProblemHttpResult>> UpsertDefinition(
         MetadataDefinitionUpsertRequest request,
+        IValidator<MetadataDefinitionUpsertRequest> validator,
         IUploadKnowledgeSyncService service,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Key) || string.IsNullOrWhiteSpace(request.Label))
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
         {
-            return TypedResults.BadRequest(new ErrorResponse { Error = "Key and Label are required." });
+            var errors = string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage));
+            return TypedResults.BadRequest(new ErrorResponse { Error = errors });
         }
 
         try
@@ -195,18 +213,20 @@ public static class MetadataEndpoints
                 UpdatedAt = DateTime.UtcNow
             }, ct);
 
-            return TypedResults.Ok<object>(new
+            var payload = new MetadataDefinitionResponse
             {
-                id = definition.Id,
-                key = definition.Key,
-                label = definition.Label,
-                type = definition.ValueType,
-                filterable = definition.Filterable,
-                allowFreeText = definition.AllowFreeText,
-                required = definition.Required,
-                policy = definition.Policy.ToString(),
-                isActive = definition.IsActive
-            });
+                Id = definition.Id,
+                Key = definition.Key,
+                Label = definition.Label,
+                Type = definition.ValueType,
+                Filterable = definition.Filterable,
+                AllowFreeText = definition.AllowFreeText,
+                Required = definition.Required,
+                Policy = definition.Policy.ToString(),
+                IsActive = definition.IsActive
+            };
+
+            return TypedResults.Ok(payload);
         }
         catch (UnauthorizedAccessException)
         {
@@ -221,16 +241,17 @@ public static class MetadataEndpoints
         }
     }
 
-    private static async Task<Results<Ok<object>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, ProblemHttpResult>> UpsertValueOption(
+    private static async Task<Results<Ok<MetadataValueOptionResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, ProblemHttpResult>> UpsertValueOption(
         MetadataValueOptionUpsertRequest request,
+        IValidator<MetadataValueOptionUpsertRequest> validator,
         IUploadKnowledgeSyncService service,
         CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Key)
-            || string.IsNullOrWhiteSpace(request.Value)
-            || string.IsNullOrWhiteSpace(request.Label))
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
         {
-            return TypedResults.BadRequest(new ErrorResponse { Error = "Key, Value and Label are required." });
+            var errors = string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage));
+            return TypedResults.BadRequest(new ErrorResponse { Error = errors });
         }
 
         try
@@ -245,15 +266,17 @@ public static class MetadataEndpoints
                 UpdatedAt = DateTime.UtcNow
             }, ct);
 
-            return TypedResults.Ok<object>(new
+            var payload = new MetadataValueOptionResponse
             {
-                id = option.Id,
-                value = option.CanonicalValue,
-                label = option.DisplayLabel,
-                aliases = option.Aliases,
-                isActive = option.IsActive,
-                sortOrder = option.SortOrder
-            });
+                Id = option.Id,
+                Value = option.CanonicalValue,
+                Label = option.DisplayLabel,
+                Aliases = option.Aliases,
+                IsActive = option.IsActive,
+                SortOrder = option.SortOrder
+            };
+
+            return TypedResults.Ok(payload);
         }
         catch (InvalidOperationException ex)
         {

@@ -61,10 +61,13 @@ dotnet list backend/Aimy.Core/Aimy.Core.csproj package
 dotnet list backend/Aimy.Core/Aimy.Core.csproj reference
 ```
 
-## PATTERNS AND CONVENTION
+## PATTERNS AND CONVENTIONS
 * Use primary constructors
 * Use `required` keyword for required properties
 * Use `string?` for optional strings
+* **API responses**: Always return typed response models (`Produces<T>`). Never return `object` or anonymous types.
+* **API validation**: Use FluentValidation (`AbstractValidator<T>`) in `API/Validators/`. Inject `IValidator<T>` in endpoint handlers and call `ValidateAsync`. Never use inline `if` checks for request validation.
+* **Validation constraints**: Mirror DB constraints (MaxLength, Required) from EF Fluent API configurations in `Infrastructure/Data/Configurations/`.
 
 ## ANTI-PATTERNS
 

@@ -151,6 +151,90 @@ public class KnowledgeItemService(
         return MapToResponse(savedItem);
     }
 
+    public async Task<ItemResponse> UploadToFolderAsync(UploadToFolderRequest request, CancellationToken ct)
+    {
+        var userId = currentUserService.GetCurrentUserId()
+            ?? throw new UnauthorizedAccessException("User is not authenticated");
+
+        logger.LogInformation("Uploading file {FileName} to folder {FolderId} for user {UserId}",
+            request.FileName, request.FolderId, userId);
+
+        var folder = await folderRepository.GetByIdAsync(request.FolderId, ct)
+            ?? throw new KeyNotFoundException("Folder not found");
+
+        var kb = await kbRepository.GetOrCreateForUserAsync(userId, ct);
+        if (folder.KnowledgeBaseId != kb.Id)
+            throw new UnauthorizedAccessException("Folder does not belong to user");
+
+        if (request.FileStream.CanSeek)
+        {
+            request.FileStream.Position = 0;
+        }
+
+        var storagePath = await storageService.UploadAsync(
+            userId,
+            "knowledgebase",
+            request.FileName,
+            request.FileStream,
+            request.ContentType,
+            ct);
+
+        var normalizedMetadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
+        var upload = new Upload
+        {
+            UserId = userId,
+            FileName = request.FileName,
+            StoragePath = storagePath,
+            FileSizeBytes = request.FileStream.CanSeek ? request.FileStream.Length : 0,
+            ContentType = request.ContentType,
+            Metadata = normalizedMetadata
+        };
+
+        Upload savedUpload;
+        try
+        {
+            savedUpload = await uploadRepository.AddAsync(upload, ct);
+        }
+        catch
+        {
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
+
+        try
+        {
+            await uploadKnowledgeSyncService.EnqueueIngestionAsync(savedUpload.Id, ct);
+        }
+        catch
+        {
+            await uploadRepository.DeleteAsync(savedUpload.Id, ct);
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
+
+        try
+        {
+            var item = new KnowledgeItem
+            {
+                FolderId = request.FolderId,
+                Title = request.Title ?? request.FileName,
+                ItemType = KnowledgeItemType.File,
+                Metadata = normalizedMetadata,
+                SourceUploadId = savedUpload.Id
+            };
+
+            var savedItem = await itemRepository.AddAsync(item, ct);
+            logger.LogInformation("File item created: {ItemId} ({Title})", savedItem.Id, savedItem.Title);
+            return MapToResponse(savedItem);
+        }
+        catch
+        {
+            await uploadRepository.DeleteAsync(savedUpload.Id, ct);
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
+    }
+
     public async Task<ItemResponse> UpdateAsync(Guid id, UpdateItemRequest request, CancellationToken ct)
     {
         var userId = currentUserService.GetCurrentUserId()

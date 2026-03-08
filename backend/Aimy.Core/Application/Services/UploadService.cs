@@ -66,19 +66,8 @@ public class UploadService(
             throw;
         }
 
-        try
-        {
-            await uploadKnowledgeSyncService.EnqueueIngestionAsync(savedUpload.Id, ct);
-        }
-        catch
-        {
-            await uploadRepository.DeleteAsync(savedUpload.Id, ct);
-            await storageService.DeleteAsync(storagePath, ct);
-            throw;
-        }
-
         logger.LogInformation("File uploaded: {UploadId} ({FileName})", savedUpload.Id, savedUpload.FileName);
-        return await BuildUploadFileResponseAsync(savedUpload, ct);
+        return BuildUploadFileResponse(savedUpload);
     }
 
     public async Task<PagedResult<UploadFileResponse>> ListAsync(int page, int pageSize, CancellationToken ct)
@@ -92,7 +81,7 @@ public class UploadService(
         var responses = new List<UploadFileResponse>(pagedUploads.Items.Count);
         foreach (var upload in pagedUploads.Items)
         {
-            responses.Add(await BuildUploadFileResponseAsync(upload, ct));
+            responses.Add(BuildUploadFileResponse(upload));
         }
 
         return new PagedResult<UploadFileResponse>
@@ -162,13 +151,11 @@ public class UploadService(
 
         logger.LogInformation("Metadata updated for file {UploadId}, {LinkedItemCount} linked items updated",
             id, (await knowledgeItemRepository.GetBySourceUploadIdAsync(upload.Id, ct)).Count);
-        return await BuildUploadFileResponseAsync(upload, ct);
+        return BuildUploadFileResponse(upload);
     }
 
-    private async Task<UploadFileResponse> BuildUploadFileResponseAsync(Upload upload, CancellationToken ct)
+    private static UploadFileResponse BuildUploadFileResponse(Upload upload)
     {
-        var ingestion = await dataIngestionService.GetByUploadIdAsync(upload.Id, ct);
-
         return new UploadFileResponse
         {
             Id = upload.Id,
@@ -178,11 +165,7 @@ public class UploadService(
             SizeBytes = upload.FileSizeBytes,
             UploadedAt = upload.DateUploaded,
             Metadata = upload.Metadata,
-            IngestionStatus = null,
-            IngestionError = null,
-            IngestionStartedAt = null,
-            IngestionCompletedAt = null,
-            Ingestion = ingestion
+            Ingestion = null
         };
     }
 

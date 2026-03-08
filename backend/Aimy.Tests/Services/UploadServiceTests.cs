@@ -45,17 +45,9 @@ public class UploadServiceTests
             .Returns((string? input) => input);
 
         _uploadKnowledgeSyncServiceMock
-            .Setup(s => s.EnqueueIngestionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        _uploadKnowledgeSyncServiceMock
             .Setup(s => s.SyncMetadataAsync(It.IsAny<Upload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .Callback<Upload, string?, CancellationToken>((upload, normalizedMetadata, _) => upload.Metadata = normalizedMetadata)
             .Returns(Task.CompletedTask);
-
-        _dataIngestionServiceMock
-            .Setup(s => s.GetByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Aimy.Core.Application.DTOs.Upload.UploadIngestionResponse?)null);
 
         _knowledgeItemRepositoryMock
             .Setup(r => r.ExistsBySourceUploadIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
@@ -64,10 +56,6 @@ public class UploadServiceTests
         _knowledgeItemRepositoryMock
             .Setup(r => r.GetBySourceUploadIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
-
-        _dataIngestionServiceMock
-            .Setup(s => s.UpdateMetadataByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
     }
 
     [Test]
@@ -93,7 +81,7 @@ public class UploadServiceTests
             .ReturnsAsync([]);
 
         _storageServiceMock
-            .Setup(s => s.UploadAsync(userId, fileName, fileStream, contentType, It.IsAny<CancellationToken>()))
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", fileName, fileStream, contentType, It.IsAny<CancellationToken>()))
             .ReturnsAsync(storagePath);
 
         _uploadRepositoryMock
@@ -118,7 +106,7 @@ public class UploadServiceTests
         result.UploadedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
         result.Ingestion.Should().BeNull();
 
-        _storageServiceMock.Verify(s => s.UploadAsync(userId, fileName, fileStream, contentType, It.IsAny<CancellationToken>()), Times.Once);
+        _storageServiceMock.Verify(s => s.UploadAsync(userId, "knowledgebase", fileName, fileStream, contentType, It.IsAny<CancellationToken>()), Times.Once);
         _uploadRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -153,35 +141,12 @@ public class UploadServiceTests
                 TotalCount = 1
             });
 
-        _dataIngestionServiceMock
-            .Setup(s => s.GetByUploadIdAsync(uploadId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new Aimy.Core.Application.DTOs.Upload.UploadIngestionResponse
-            {
-                Summary = "Main summary",
-                Chunks =
-                [
-                    new Aimy.Core.Application.DTOs.Upload.UploadChunkResponse
-                    {
-                        Id = Guid.NewGuid(),
-                        Content = "chunk content",
-                        Context = "chunk context",
-                        Summary = "chunk summary",
-                        Metadata = "{\"language\":\"en\"}",
-                        CreatedAt = DateTime.UtcNow
-                    }
-                ]
-            });
-
         // Act
         var result = await _sut.ListAsync(1, 10, CancellationToken.None);
 
         // Assert
         result.Items.Should().HaveCount(1);
-        var ingestion = result.Items[0].Ingestion;
-        ingestion.Should().NotBeNull();
-        ingestion!.Summary.Should().Be("Main summary");
-        ingestion.Chunks.Should().HaveCount(1);
-        ingestion.Chunks[0].Content.Should().Be("chunk content");
+        result.Items[0].Ingestion.Should().BeNull();
     }
 
     [Test]
@@ -201,7 +166,7 @@ public class UploadServiceTests
         act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("User is not authenticated");
 
-        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
         _uploadRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -220,7 +185,7 @@ public class UploadServiceTests
             .ReturnsAsync([]);
 
         _storageServiceMock
-            .Setup(s => s.UploadAsync(userId, It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Storage service unavailable"));
 
         using var fileStream = new MemoryStream(new byte[1024]);
@@ -259,7 +224,7 @@ public class UploadServiceTests
             .ReturnsAsync([]);
 
         _storageServiceMock
-            .Setup(s => s.UploadAsync(userId, expectedFileName, fileStream, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", expectedFileName, fileStream, It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(storagePath);
 
         _uploadRepositoryMock

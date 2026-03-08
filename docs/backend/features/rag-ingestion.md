@@ -29,7 +29,7 @@ Example `appsettings.json`:
     "MaxTokensPerChunk": 2000,
     "OverlapTokens": 100,
     "CollectionName": "ingestion_embeddings",
-    "DistanceFunction": null,
+    "DistanceFunction": "CosineSimilarity",
     "IndexKind": null,
     "IncrementalIngestion": true,
     "EnableSummary": true,
@@ -81,8 +81,60 @@ During ingestion, each chunk automatically receives system metadata and upload m
 - `createdat`: chunk creation timestamp (UTC).
 - `upload_metadata`: parsed JSON object from `Upload.Metadata` when valid JSON.
 
+`Upload.Metadata` is now canonicalized by the metadata governance pipeline before ingestion updates. This guarantees chunk-level `upload_metadata` receives normalized values for controlled keys (exact/alias/fuzzy resolution) while preserving permissive custom values when allowed.
+
+> **Note for semantic search**: The `sourceid` field is the bridge between the ingestion pipeline and the semantic search pipeline. When semantic search retrieves vector results, it parses `sourceid` back to a `Guid` and queries `KnowledgeItem.SourceUploadId` to hydrate the full item response. See [Semantic Search](semantic-search.md) for details.
+
 This keeps user-defined metadata consistent across upload and chunk records while allowing chunk-specific metadata enrichment.
 
 When deleting an upload, the backend also removes ingestion chunks linked by `sourceid = uploadId.ToString()`.
 
 Deletion is blocked when the upload is assigned to a knowledge base item.
+
+## Durable Job Lifecycle
+
+Ingestion orchestration now uses a DB-backed job queue (`ingestion_jobs`) instead of in-memory channels.
+
+- Worker: `Aimy.Infrastructure.BackgroundJobs.UploadProcessingWorker`
+- Claim path: atomic SQL claim in `Aimy.Infrastructure.Repositories.IngestionJobRepository`
+- Source of truth: `ingestion_jobs` + upload lifecycle fields in `uploads`
+
+### Upload lifecycle fields
+
+Each upload now carries ingestion lifecycle visibility fields:
+
+- `ingestionStatus`: `Pending | Processing | Completed | Failed`
+- `ingestionError`: latest processing error (for failed states)
+- `ingestionStartedAt`: UTC timestamp when processing started
+- `ingestionCompletedAt`: UTC timestamp when processing finished
+
+### Retry behavior
+
+Retry is deterministic and bounded via `Ingestion` options:
+
+- `MaxJobAttempts` (default `3`)
+- `RetryDelaySeconds` (default `30`)
+
+When a job fails:
+
+1. Attempts are incremented.
+2. If attempts are below max, job returns to `Pending` with `NextAttemptAt`.
+3. If max attempts is reached, job becomes terminal `Failed`.
+
+### Idempotency guarantees
+
+`DataIngestionService.IngestDataAsync` starts from deterministic state by deleting prior chunks for the same upload (`sourceid = uploadId`) before writing fresh ingestion output. Reprocessing the same upload therefore does not duplicate chunk records.
+
+### Compensation boundaries
+
+Upload creation paths now perform explicit compensation to avoid terminal partial state:
+
+- Storage write succeeds but upload DB insert fails -> storage object is deleted.
+- Upload DB insert succeeds but ingestion job enqueue fails -> upload record and storage object are deleted.
+
+The same compensation rules are applied for markdown note creation flows that create upload records.
+
+## Related Documentation
+
+- [Semantic Search](semantic-search.md) — Query the vectors produced by this pipeline using the `SimpleSemanticSearch` endpoint.
+- [Semantic Search API](../api/semantic-search.md) — API contract for the semantic search endpoint.

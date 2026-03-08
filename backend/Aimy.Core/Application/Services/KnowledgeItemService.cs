@@ -43,6 +43,7 @@ public class KnowledgeItemService(
         var normalizedMetadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
         var storagePath = await storageService.UploadAsync(
             userId,
+            "knowledgebase",
             $"{request.Title}.md",
             stream,
             "text/markdown",
@@ -189,6 +190,7 @@ public class KnowledgeItemService(
 
             var newStoragePath = await storageService.UploadAsync(
                 userId,
+                "knowledgebase",
                 $"{updatedTitle}.md",
                 stream,
                 "text/markdown",

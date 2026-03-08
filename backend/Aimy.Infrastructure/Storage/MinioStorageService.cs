@@ -9,18 +9,17 @@ public class MinioStorageService(IMinioClient minio) : IStorageService
 {
     public async Task<string> UploadAsync(
         Guid userId,
+        string bucketName,
         string fileName,
         Stream fileStream,
         string? contentType,
         CancellationToken ct)
     {
-        var bucketName = userId.ToString();
-        
-        // Ensure bucket exists for user
+        // Ensure bucket exists
         await EnsureBucketExistsAsync(bucketName, ct);
         
-        // Generate unique object name
-        var objectName = $"{Guid.NewGuid()}_{fileName}";
+        // Generate hierarchical object name with userId prefix
+        var objectName = StorageKeyFormat.KbItemKey(userId, fileName);
         
         // Upload file to MinIO
         await minio.PutObjectAsync(new PutObjectArgs()

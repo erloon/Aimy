@@ -4,6 +4,7 @@ public interface IStorageService
 {
     Task<string> UploadAsync(
         Guid userId,
+        string bucketName,
         string fileName,
         Stream fileStream,
         string? contentType,

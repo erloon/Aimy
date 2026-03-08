@@ -104,8 +104,8 @@ public class KnowledgeItemServiceTests
             .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
 
         _storageServiceMock
-            .Setup(s => s.UploadAsync(userId, It.IsAny<string>(), It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()))
-            .Callback<Guid, string, Stream, string?, CancellationToken>((_, _, stream, _, _) =>
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", It.IsAny<string>(), It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()))
+            .Callback<Guid, string, string, Stream, string?, CancellationToken>((_, _, _, stream, _, _) =>
             {
                 streamPositionDuringUpload = stream.Position;
             })
@@ -139,7 +139,7 @@ public class KnowledgeItemServiceTests
         result.ItemType.Should().Be(KnowledgeItemType.Note);
         result.SourceUploadId.Should().Be(uploadId);
 
-        _storageServiceMock.Verify(s => s.UploadAsync(userId, "Test Note.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()), Times.Once);
+        _storageServiceMock.Verify(s => s.UploadAsync(userId, "knowledgebase", "Test Note.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()), Times.Once);
         _uploadRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()), Times.Once);
         _uploadRepositoryMock.Verify(r => r.AddAsync(
             It.Is<Upload>(u => u.Metadata == "[\"test\"]"),
@@ -224,7 +224,7 @@ public class KnowledgeItemServiceTests
         act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("Folder does not belong to user");
 
-        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     #endregion
@@ -533,7 +533,7 @@ public class KnowledgeItemServiceTests
             .Returns(Task.CompletedTask);
 
         _storageServiceMock
-            .Setup(s => s.UploadAsync(userId, "Updated Title.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()))
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", "Updated Title.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()))
             .ReturnsAsync(newStoragePath);
 
         _storageServiceMock
@@ -548,7 +548,7 @@ public class KnowledgeItemServiceTests
         result.Content.Should().Be("Updated Content");
         result.Metadata.Should().Be("[\"updated\"]");
 
-        _storageServiceMock.Verify(s => s.UploadAsync(userId, "Updated Title.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()), Times.Once);
+        _storageServiceMock.Verify(s => s.UploadAsync(userId, "knowledgebase", "Updated Title.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()), Times.Once);
         _storageServiceMock.Verify(s => s.DeleteAsync(oldStoragePath, It.IsAny<CancellationToken>()), Times.Once);
         _uploadRepositoryMock.Verify(r => r.UpdateAsync(
             It.Is<Upload>(u => u.Id == uploadId
@@ -623,7 +623,7 @@ public class KnowledgeItemServiceTests
                 "[\"file-updated\"]",
                 It.IsAny<CancellationToken>()),
             Times.Once);
-        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _storageServiceMock.Verify(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

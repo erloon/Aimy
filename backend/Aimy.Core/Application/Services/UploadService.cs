@@ -39,6 +39,7 @@ public class UploadService(
         var normalizedMetadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(metadata);
         var storagePath = await storageService.UploadAsync(
             userId.Value,
+            "knowledgebase",
             displayFileName,
             fileStream,
             contentType,

@@ -1,6 +1,6 @@
 using Aimy.Core.Application.DTOs.Upload;
 
-namespace Aimy.Core.Application.Interfaces.Upload;
+namespace Aimy.Core.Application.Interfaces.KnowledgeBase;
 
 public interface IIngestionJobService
 {

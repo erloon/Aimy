@@ -1,4 +1,4 @@
-using Aimy.Core.Application.Interfaces.Upload;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Domain.Entities;
 using Aimy.Infrastructure.Data;
 using System.Data;

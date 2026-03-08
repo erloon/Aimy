@@ -1,6 +1,7 @@
 using Aimy.API.Models;
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.DTOs.Upload;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Application.Interfaces.Upload;
 using Microsoft.AspNetCore.Http.HttpResults;
 

@@ -1,5 +1,6 @@
 using Aimy.Core.Application.Interfaces.Auth;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
+using Aimy.Core.Application.Interfaces.Metadata;
 using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Application.Interfaces.Integrations;
 using Aimy.Core.Application.Services;
@@ -90,6 +91,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IKnowledgeBaseRepository, KnowledgeBaseRepository>();
         builder.Services.AddScoped<IFolderRepository, FolderRepository>();
         builder.Services.AddScoped<IKnowledgeItemRepository, KnowledgeItemRepository>();
+        builder.Services.AddScoped<IMetadataCatalogRepository, MetadataCatalogRepository>();
         
         builder.Services.AddHostedService<UploadProcessingWorker>();
         

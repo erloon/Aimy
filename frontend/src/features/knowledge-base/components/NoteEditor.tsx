@@ -15,6 +15,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useCreateNote, useUpdateItem } from "../hooks/useItems"
 import { KnowledgeItem } from "../types"
 import { Loader2, Plus, Trash2 } from "lucide-react"
+import {
+  getMetadataKeys,
+  getMetadataValues,
+  normalizeMetadata,
+  type MetadataKeyDefinition,
+  type MetadataNormalizeWarning,
+  type MetadataValueSuggestionItem,
+} from "../api/knowledge-base-api"
 
 interface MetadataField {
   id: string
@@ -39,6 +47,9 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
   const [metadataFields, setMetadataFields] = useState<MetadataField[]>([{ id: createFieldId(), key: "", value: "" }])
   const [metadataError, setMetadataError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [keyDefinitions, setKeyDefinitions] = useState<MetadataKeyDefinition[]>([])
+  const [valueSuggestions, setValueSuggestions] = useState<Record<number, MetadataValueSuggestionItem[]>>({})
+  const [normalizationWarnings, setNormalizationWarnings] = useState<MetadataNormalizeWarning[]>([])
 
   useEffect(() => {
     if (open) {
@@ -47,10 +58,30 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
       setMetadataFields(parseMetadataFields(item?.metadata))
       setMetadataError(null)
       setSubmitError(null)
+      setNormalizationWarnings([])
+      setValueSuggestions({})
     } else {
       // Reset form when closed if needed, but useEffect above handles it on open
     }
   }, [open, item])
+
+  useEffect(() => {
+    if (!open) return
+
+    void (async () => {
+      try {
+        const keys = await getMetadataKeys()
+        setKeyDefinitions(keys)
+      } catch {
+        setKeyDefinitions([])
+      }
+    })()
+  }, [open])
+
+  const keyDefinitionMap = keyDefinitions.reduce<Record<string, MetadataKeyDefinition>>((acc, definition) => {
+    acc[definition.key.toLowerCase()] = definition
+    return acc
+  }, {})
 
   const validateMetadata = (fields: MetadataField[]): { ok: true; normalized: string } | { ok: false; error: string } => {
     const normalizedEntries = fields
@@ -74,7 +105,49 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
       metadataObject[entry.key] = entry.value
     }
 
+    for (let i = 0; i < fields.length; i += 1) {
+      const key = fields[i].key.trim()
+      const value = fields[i].value.trim()
+      if (!key || !value) {
+        continue
+      }
+
+      const definition = keyDefinitionMap[key.toLowerCase()]
+      if (!definition || definition.allowFreeText) {
+        continue
+      }
+
+      const knownOptions = valueSuggestions[i] ?? []
+      if (knownOptions.length === 0) {
+        continue
+      }
+
+      const isKnown = knownOptions.some(option =>
+        option.value.toLowerCase() === value.toLowerCase()
+        || option.aliases.some(alias => alias.toLowerCase() === value.toLowerCase())
+        || option.label.toLowerCase() === value.toLowerCase())
+
+      if (!isKnown) {
+        return { ok: false, error: `Value '${value}' is not allowed for key '${key}'. Choose one of suggested values.` }
+      }
+    }
+
     return { ok: true, normalized: JSON.stringify(metadataObject) }
+  }
+
+  const loadValueSuggestions = async (index: number, key: string, valuePrefix: string) => {
+    const normalizedKey = key.trim()
+    if (!normalizedKey) {
+      setValueSuggestions(prev => ({ ...prev, [index]: [] }))
+      return
+    }
+
+    try {
+      const suggestions = await getMetadataValues(normalizedKey, valuePrefix || undefined)
+      setValueSuggestions(prev => ({ ...prev, [index]: suggestions.items }))
+    } catch {
+      setValueSuggestions(prev => ({ ...prev, [index]: [] }))
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,21 +164,29 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
 
     try {
       if (item) {
+        const normalizedPayload = JSON.parse(metadataValidation.normalized) as Record<string, unknown>
+        const normalized = await normalizeMetadata(normalizedPayload)
+        setNormalizationWarnings(normalized.warnings)
+
         await updateItem.mutateAsync({
           id: item.id,
           request: {
             title,
             content,
-            metadata: metadataValidation.normalized,
+            metadata: normalized.metadata ?? metadataValidation.normalized,
             folderId: item.folderId 
           }
         })
       } else {
+        const normalizedPayload = JSON.parse(metadataValidation.normalized) as Record<string, unknown>
+        const normalized = await normalizeMetadata(normalizedPayload)
+        setNormalizationWarnings(normalized.warnings)
+
         await createNote.mutateAsync({
           folderId,
           title,
           content,
-          metadata: metadataValidation.normalized,
+          metadata: normalized.metadata ?? metadataValidation.normalized,
         })
       }
       onSuccess?.()
@@ -155,30 +236,48 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
               </Button>
             </div>
             <div className="space-y-2">
-              {metadataFields.map((field) => (
+              {metadataFields.map((field, index) => (
                 <div key={field.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
                   <Input
                     value={field.key}
                     onChange={(e) => {
                       const nextValue = e.target.value
                       setMetadataFields((prev) => prev.map((entry) => entry.id === field.id ? { ...entry, key: nextValue } : entry))
+                      void loadValueSuggestions(index, nextValue, field.value)
                       if (metadataError) {
                         setMetadataError(null)
                       }
                     }}
                     placeholder="key"
+                    list={`note-metadata-key-options-${index}`}
                   />
+                  <datalist id={`note-metadata-key-options-${index}`}>
+                    {keyDefinitions.map(definition => (
+                      <option key={definition.key} value={definition.key}>
+                        {definition.label}
+                      </option>
+                    ))}
+                  </datalist>
                   <Input
                     value={field.value}
                     onChange={(e) => {
                       const nextValue = e.target.value
                       setMetadataFields((prev) => prev.map((entry) => entry.id === field.id ? { ...entry, value: nextValue } : entry))
+                      void loadValueSuggestions(index, field.key, nextValue)
                       if (metadataError) {
                         setMetadataError(null)
                       }
                     }}
                     placeholder="value"
+                    list={`note-metadata-value-options-${index}`}
                   />
+                  <datalist id={`note-metadata-value-options-${index}`}>
+                    {(valueSuggestions[index] ?? []).map(option => (
+                      <option key={`${option.value}-${option.matchType}`} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </datalist>
                   <Button
                     type="button"
                     variant="ghost"
@@ -209,6 +308,18 @@ export function NoteEditor({ open, onOpenChange, folderId, item, onSuccess }: No
               <Alert variant="destructive">
                 <AlertDescription>{metadataError}</AlertDescription>
               </Alert>
+            )}
+
+            {normalizationWarnings.length > 0 && (
+              <div className="rounded-md border bg-muted/40 p-3 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Canonicalization feedback</p>
+                {normalizationWarnings.map((warning, index) => (
+                  <p key={`${warning.key}-${index}`} className="text-xs text-muted-foreground">
+                    {warning.key}: {warning.message}
+                    {warning.resolvedValue ? ` -> ${warning.resolvedValue}` : ''}
+                  </p>
+                ))}
+              </div>
             )}
           </div>
           <div className="space-y-2">

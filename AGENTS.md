@@ -98,6 +98,7 @@ We follow a strict documentation-first approach. All features and architectural 
 | `docs/backend/features/`     | Feature specs (Logic & API)            |
 | `docs/ui/components/`        | Reusable components & design system    |
 | `docs/ui/features/`          | Feature specs (UI flows & interaction) |
+| `docs/general/features/`     | Core, cross-cutting application features |
 | `docs/general/plans/`        | RFCs, roadmaps, high-level designs     |
 | `docs/general/plans/archive/`| Completed, rejected, or obsolete plans |
 | `docs/general/standards/`    | Coding standards & conventions         |

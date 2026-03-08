@@ -12,7 +12,15 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { NormalizedFileItem } from '../api/storage-api'
+import {
+  getMetadataKeys,
+  getMetadataValues,
+  normalizeMetadata,
+  type MetadataKeyDefinition,
+  type MetadataValueSuggestionItem,
+  type MetadataNormalizeWarning,
+  type NormalizedFileItem
+} from '../api/storage-api'
 
 interface MetadataSheetProps {
   file: NormalizedFileItem | null
@@ -68,13 +76,37 @@ export function MetadataSheet({
   isSaving
 }: MetadataSheetProps) {
   const [entries, setEntries] = useState<KeyValue[]>([])
+  const [keyDefinitions, setKeyDefinitions] = useState<MetadataKeyDefinition[]>([])
+  const [valueSuggestions, setValueSuggestions] = useState<Record<number, MetadataValueSuggestionItem[]>>({})
+  const [normalizationWarnings, setNormalizationWarnings] = useState<MetadataNormalizeWarning[]>([])
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   // Reset entries when file changes
   useEffect(() => {
     if (file) {
       setEntries(parseMetadata(file.metadata))
+      setNormalizationWarnings([])
+      setValidationError(null)
     }
   }, [file])
+
+  useEffect(() => {
+    if (!open) return
+
+    void (async () => {
+      try {
+        const keys = await getMetadataKeys()
+        setKeyDefinitions(keys)
+      } catch {
+        setKeyDefinitions([])
+      }
+    })()
+  }, [open])
+
+  const keyDefinitionMap = keyDefinitions.reduce<Record<string, MetadataKeyDefinition>>((acc, definition) => {
+    acc[definition.key.toLowerCase()] = definition
+    return acc
+  }, {})
 
   const handleAddEntry = () => {
     setEntries(prev => [...prev, { key: '', value: '' }])
@@ -82,18 +114,108 @@ export function MetadataSheet({
 
   const handleRemoveEntry = (index: number) => {
     setEntries(prev => prev.filter((_, i) => i !== index))
+    setValueSuggestions(prev => {
+      const next: Record<number, MetadataValueSuggestionItem[]> = {}
+      for (const [key, suggestions] of Object.entries(prev)) {
+        const numeric = Number(key)
+        if (numeric < index) {
+          next[numeric] = suggestions
+        } else if (numeric > index) {
+          next[numeric - 1] = suggestions
+        }
+      }
+      return next
+    })
   }
 
   const handleUpdateEntry = (index: number, field: 'key' | 'value', value: string) => {
     setEntries(prev => prev.map((entry, i) => 
       i === index ? { ...entry, [field]: value } : entry
     ))
+
+    if (field === 'value') {
+      const key = entries[index]?.key?.trim()
+      if (key) {
+        void loadValueSuggestions(index, key, value)
+      }
+    }
+
+    if (field === 'key') {
+      void loadValueSuggestions(index, value, entries[index]?.value ?? '')
+    }
   }
 
-  const handleSave = () => {
+  const loadValueSuggestions = async (index: number, key: string, valuePrefix: string) => {
+    const normalizedKey = key.trim()
+    if (!normalizedKey) {
+      setValueSuggestions(prev => ({ ...prev, [index]: [] }))
+      return
+    }
+
+    try {
+      const suggestions = await getMetadataValues(normalizedKey, valuePrefix || undefined)
+      setValueSuggestions(prev => ({ ...prev, [index]: suggestions.items }))
+    } catch {
+      setValueSuggestions(prev => ({ ...prev, [index]: [] }))
+    }
+  }
+
+  const validateStrictDefinitions = (): string | null => {
+    for (let i = 0; i < entries.length; i += 1) {
+      const entry = entries[i]
+      const key = entry.key.trim()
+      const value = entry.value.trim()
+      if (!key || !value) {
+        continue
+      }
+
+      const definition = keyDefinitionMap[key.toLowerCase()]
+      if (!definition || definition.allowFreeText) {
+        continue
+      }
+
+      const knownOptions = valueSuggestions[i] ?? []
+      if (knownOptions.length === 0) {
+        continue
+      }
+
+      const isKnown = knownOptions.some(option =>
+        option.value.toLowerCase() === value.toLowerCase()
+        || option.aliases.some(alias => alias.toLowerCase() === value.toLowerCase())
+        || option.label.toLowerCase() === value.toLowerCase())
+
+      if (!isKnown) {
+        return `Value '${value}' is not allowed for key '${key}'. Choose one of the suggested values.`
+      }
+    }
+
+    return null
+  }
+
+  const handleSave = async () => {
     if (!file) return
+
+    setValidationError(null)
+    const strictValidationError = validateStrictDefinitions()
+    if (strictValidationError) {
+      setValidationError(strictValidationError)
+      return
+    }
+
     const metadata = serializeMetadata(entries)
-    onSave(file.id, metadata)
+
+    try {
+      const normalized = await normalizeMetadata(metadata)
+      setNormalizationWarnings(normalized.warnings)
+
+      const normalizedPayload = normalized.metadata
+        ? (JSON.parse(normalized.metadata) as Record<string, unknown>)
+        : {}
+
+      onSave(file.id, normalizedPayload)
+    } catch {
+      onSave(file.id, metadata)
+    }
   }
 
   if (!file) return null
@@ -156,13 +278,29 @@ export function MetadataSheet({
                       value={entry.key}
                       onChange={(e) => handleUpdateEntry(index, 'key', e.target.value)}
                       className="flex-1"
+                      list={`metadata-key-options-${index}`}
                     />
+                    <datalist id={`metadata-key-options-${index}`}>
+                      {keyDefinitions.map(definition => (
+                        <option key={definition.key} value={definition.key}>
+                          {definition.label}
+                        </option>
+                      ))}
+                    </datalist>
                     <Input
                       placeholder="Value"
                       value={entry.value}
                       onChange={(e) => handleUpdateEntry(index, 'value', e.target.value)}
                       className="flex-1"
+                      list={`metadata-value-options-${index}`}
                     />
+                    <datalist id={`metadata-value-options-${index}`}>
+                      {(valueSuggestions[index] ?? []).map(option => (
+                        <option key={`${option.value}-${option.matchType}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </datalist>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -172,6 +310,22 @@ export function MetadataSheet({
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
+                ))}
+              </div>
+            )}
+
+            {validationError && (
+              <p className="text-sm text-destructive">{validationError}</p>
+            )}
+
+            {normalizationWarnings.length > 0 && (
+              <div className="rounded-md border bg-muted/40 p-3 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Canonicalization feedback</p>
+                {normalizationWarnings.map((warning, index) => (
+                  <p key={`${warning.key}-${index}`} className="text-xs text-muted-foreground">
+                    {warning.key}: {warning.message}
+                    {warning.resolvedValue ? ` -> ${warning.resolvedValue}` : ''}
+                  </p>
                 ))}
               </div>
             )}

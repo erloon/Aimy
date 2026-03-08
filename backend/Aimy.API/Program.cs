@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json.Serialization;
 using Aimy.API.Endpoints;
 using Aimy.Core;
 using Aimy.Core.Application.Interfaces.Auth;
@@ -41,7 +42,14 @@ builder.Services.AddAuthentication(options =>
             Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
     };
 });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+});
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(options =>
@@ -106,6 +114,7 @@ app.MapAuthEndpoints();
 app.MapUploadEndpoints();
 app.MapFolderEndpoints();
 app.MapKnowledgeItemEndpoints();
+app.MapMetadataEndpoints();
 
 
 using (var scope = app.Services.CreateScope())

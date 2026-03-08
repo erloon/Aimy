@@ -25,6 +25,9 @@ public class IngestionJobConfiguration : IEntityTypeConfiguration<IngestionJob>
         builder.Property(j => j.NextAttemptAt)
             .IsRequired();
 
+        builder.Property(j => j.StartedAt)
+            .HasColumnName("started_at");
+
         builder.Property(j => j.ClaimedAt);
 
         builder.Property(j => j.CompletedAt);

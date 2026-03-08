@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Input } from "@/components/ui/input"
 import { useItems, useDeleteItem } from "../hooks/useItems"
 import { ItemCard } from "./ItemCard"
@@ -18,12 +18,31 @@ interface ItemListProps {
 export function ItemList({ folderId, onEditItem, onViewSource, onViewItem }: ItemListProps) {
   const [search, setSearch] = useState('')
   const [metadataSearch, setMetadataSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [debouncedMetadataSearch, setDebouncedMetadataSearch] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [search])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedMetadataSearch(metadataSearch)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [metadataSearch])
+
   const { data, isLoading, isError } = useItems({
     folderId: folderId || undefined,
     includeSubFolders: !!folderId,
-    search: search || undefined,
-    metadata: metadataSearch || undefined,
+    search: debouncedSearch || undefined,
+    metadata: debouncedMetadataSearch || undefined,
     pageSize: 20
   })
   const deleteItem = useDeleteItem()

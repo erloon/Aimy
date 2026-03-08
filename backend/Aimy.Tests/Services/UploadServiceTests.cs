@@ -7,6 +7,7 @@ using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Domain.Entities;
 using FluentAssertions;
 using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Aimy.Tests.Services;
 
@@ -16,7 +17,7 @@ public class UploadServiceTests
     private Mock<IStorageService> _storageServiceMock = null!;
     private Mock<IUploadRepository> _uploadRepositoryMock = null!;
     private Mock<ICurrentUserService> _currentUserServiceMock = null!;
-    private Mock<IUploadQueueWriter> _queueWriterMock = null!;
+    private Mock<IUploadKnowledgeSyncService> _uploadKnowledgeSyncServiceMock = null!;
     private Mock<IKnowledgeItemRepository> _knowledgeItemRepositoryMock = null!;
     private Mock<IDataIngestionService> _dataIngestionServiceMock = null!;
     private UploadService _sut = null!;
@@ -27,17 +28,30 @@ public class UploadServiceTests
         _storageServiceMock = new Mock<IStorageService>();
         _uploadRepositoryMock = new Mock<IUploadRepository>();
         _currentUserServiceMock = new Mock<ICurrentUserService>();
-        _queueWriterMock = new Mock<IUploadQueueWriter>();
+        _uploadKnowledgeSyncServiceMock = new Mock<IUploadKnowledgeSyncService>();
         _knowledgeItemRepositoryMock = new Mock<IKnowledgeItemRepository>();
         _dataIngestionServiceMock = new Mock<IDataIngestionService>();
         _sut = new UploadService(
             _storageServiceMock.Object,
             _uploadRepositoryMock.Object,
             _currentUserServiceMock.Object,
-            _queueWriterMock.Object,
+            _uploadKnowledgeSyncServiceMock.Object,
             _knowledgeItemRepositoryMock.Object,
-            _dataIngestionServiceMock.Object
-            );
+            _dataIngestionServiceMock.Object,
+            NullLogger<UploadService>.Instance);
+
+        _uploadKnowledgeSyncServiceMock
+            .Setup(s => s.NormalizeMetadataPayload(It.IsAny<string?>()))
+            .Returns((string? input) => input);
+
+        _uploadKnowledgeSyncServiceMock
+            .Setup(s => s.EnqueueIngestionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _uploadKnowledgeSyncServiceMock
+            .Setup(s => s.SyncMetadataAsync(It.IsAny<Upload>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<Upload, string?, CancellationToken>((upload, normalizedMetadata, _) => upload.Metadata = normalizedMetadata)
+            .Returns(Task.CompletedTask);
 
         _dataIngestionServiceMock
             .Setup(s => s.GetByUploadIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
@@ -644,8 +658,12 @@ public class UploadServiceTests
         result.Metadata.Should().Be(newMetadata);
         result.Link.Should().Be(upload.StoragePath);
 
-        _uploadRepositoryMock.Verify(r => r.UpdateAsync(It.Is<Upload>(u => u.Id == uploadId && u.Metadata == newMetadata), It.IsAny<CancellationToken>()), Times.Once);
-        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(uploadId, newMetadata, It.IsAny<CancellationToken>()), Times.Once);
+        _uploadKnowledgeSyncServiceMock.Verify(
+            s => s.SyncMetadataAsync(
+                It.Is<Upload>(u => u.Id == uploadId),
+                newMetadata,
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Test]
@@ -694,12 +712,12 @@ public class UploadServiceTests
         _ = await _sut.UpdateMetadataAsync(uploadId, newMetadata, CancellationToken.None);
 
         // Assert
-        _knowledgeItemRepositoryMock.Verify(
-            r => r.UpdateAsync(
-                It.Is<KnowledgeItem>(i => i.Id == linkedItem.Id && i.Metadata == newMetadata),
+        _uploadKnowledgeSyncServiceMock.Verify(
+            s => s.SyncMetadataAsync(
+                It.Is<Upload>(u => u.Id == uploadId),
+                newMetadata,
                 It.IsAny<CancellationToken>()),
             Times.Once);
-        _dataIngestionServiceMock.Verify(s => s.UpdateMetadataByUploadIdAsync(uploadId, newMetadata, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]

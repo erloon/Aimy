@@ -5,6 +5,7 @@ namespace Aimy.Infrastructure.Repositories;
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Domain.Entities;
 using Aimy.Infrastructure.Data;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 
 public class KnowledgeItemRepository(ApplicationDbContext context) : IKnowledgeItemRepository
@@ -71,20 +72,59 @@ public class KnowledgeItemRepository(ApplicationDbContext context) : IKnowledgeI
         {
             query = query.Where(ki => ki.ItemType == type.Value);
         }
-        
-        // For MVP, metadata is JSON string - skip complex filtering
-        // if (!string.IsNullOrWhiteSpace(metadata))
-        // {
-        //     query = query.Where(ki => ki.Metadata != null && ki.Metadata.Contains(metadata));
-        // }
-        
-        var totalCount = await query.CountAsync(ct);
-        
-        var items = await query
-            .OrderByDescending(ki => ki.UpdatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(ct);
+
+        var metadataQuery = metadata?.Trim();
+        var metadataKey = default(string);
+        var metadataValue = default(string);
+
+        if (!string.IsNullOrWhiteSpace(metadataQuery))
+        {
+            var separatorIndex = metadataQuery.IndexOf(':');
+
+            if (separatorIndex > 0 && separatorIndex < metadataQuery.Length - 1)
+            {
+                var rawKey = metadataQuery[..separatorIndex].Trim();
+                var rawValue = metadataQuery[(separatorIndex + 1)..].Trim();
+
+                var key = TrimOptionalQuotes(rawKey);
+                var value = TrimOptionalQuotes(rawValue);
+
+                if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(value))
+                {
+                    metadataKey = key;
+                    metadataValue = value;
+                }
+            }
+        }
+
+        List<KnowledgeItem> items;
+        var totalCount = 0;
+
+        if (!string.IsNullOrWhiteSpace(metadataQuery))
+        {
+            var candidates = await query
+                .OrderByDescending(ki => ki.UpdatedAt)
+                .ToListAsync(ct);
+
+            var filtered = candidates
+                .Where(item => MetadataMatches(item.Metadata, metadataKey, metadataValue, metadataQuery))
+                .ToList();
+
+            totalCount = filtered.Count;
+            items = filtered
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+        }
+        else
+        {
+            totalCount = await query.CountAsync(ct);
+            items = await query
+                .OrderByDescending(ki => ki.UpdatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(ct);
+        }
         
         return new PagedResult<KnowledgeItem>
         {
@@ -108,6 +148,16 @@ public class KnowledgeItemRepository(ApplicationDbContext context) : IKnowledgeI
             .ToListAsync(ct);
     }
 
+    public async Task<IReadOnlyList<KnowledgeItem>> GetBySourceUploadIdsAsync(IReadOnlyCollection<Guid> sourceUploadIds, CancellationToken ct)
+    {
+        return await context.KnowledgeItems
+            .Include(ki => ki.Folder!)
+            .ThenInclude(f => f!.KnowledgeBase)
+            .Include(ki => ki.SourceUpload)
+            .Where(ki => ki.SourceUploadId.HasValue && sourceUploadIds.Contains(ki.SourceUploadId!.Value))
+            .ToListAsync(ct);
+    }
+
     public async Task UpdateAsync(KnowledgeItem item, CancellationToken ct)
     {
         context.KnowledgeItems.Update(item);
@@ -122,5 +172,101 @@ public class KnowledgeItemRepository(ApplicationDbContext context) : IKnowledgeI
             context.KnowledgeItems.Remove(item);
             await context.SaveChangesAsync(ct);
         }
+    }
+
+    private static string TrimOptionalQuotes(string input)
+    {
+        if (input.Length >= 2)
+        {
+            if ((input.StartsWith('"') && input.EndsWith('"'))
+                || (input.StartsWith('\'') && input.EndsWith('\'')))
+            {
+                return input[1..^1].Trim();
+            }
+        }
+
+        return input;
+    }
+
+    private static bool MetadataMatches(string? rawMetadata, string? key, string? value, string query)
+    {
+        if (string.IsNullOrWhiteSpace(rawMetadata))
+        {
+            return false;
+        }
+
+        if (TryParseMetadataObject(rawMetadata, out var rootElement))
+        {
+            if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(value))
+            {
+                foreach (var property in rootElement.EnumerateObject())
+                {
+                    if (!string.Equals(property.Name, key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var propertyValue = ExtractPropertyValue(property.Value);
+                    return propertyValue.Contains(value, StringComparison.OrdinalIgnoreCase);
+                }
+
+                return false;
+            }
+
+            var normalizedQuery = TrimOptionalQuotes(query).Trim();
+            if (string.IsNullOrWhiteSpace(normalizedQuery))
+            {
+                return true;
+            }
+
+            foreach (var property in rootElement.EnumerateObject())
+            {
+                if (property.Name.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                var propertyValue = ExtractPropertyValue(property.Value);
+                if (propertyValue.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        var fallbackQuery = TrimOptionalQuotes(query).Trim();
+        return rawMetadata.Contains(fallbackQuery, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseMetadataObject(string rawMetadata, out JsonElement rootElement)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(rawMetadata);
+            if (document.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                rootElement = document.RootElement.Clone();
+                return true;
+            }
+        }
+        catch (JsonException)
+        {
+            // fall through
+        }
+
+        rootElement = default;
+        return false;
+    }
+
+    private static string ExtractPropertyValue(JsonElement value)
+    {
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? string.Empty,
+            JsonValueKind.Null => string.Empty,
+            _ => value.GetRawText()
+        };
     }
 }

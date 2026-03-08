@@ -5,6 +5,7 @@ import {
   deleteItem,
   getItem,
   searchItems,
+  semanticSearch,
   updateItem,
 } from '../api/knowledge-base-api'
 import type {
@@ -13,6 +14,7 @@ import type {
   ItemSearchRequest,
   KnowledgeItem,
   PagedResult,
+  SemanticSearchResult,
   UpdateItemRequest,
 } from '../types'
 
@@ -74,5 +76,13 @@ export function useDeleteItem() {
       await queryClient.invalidateQueries({ queryKey: ['items'] })
       await queryClient.invalidateQueries({ queryKey: ['item', id] })
     },
+  })
+}
+
+export function useSemanticSearch(query: string) {
+  return useQuery<SemanticSearchResult[]>({
+    queryKey: ['semantic-search', query],
+    queryFn: () => semanticSearch(query),
+    enabled: query.length >= 3,
   })
 }

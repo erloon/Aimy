@@ -8,7 +8,7 @@ namespace Aimy.Core.Application.Services;
 using Aimy.Core.Application.DTOs;
 using Aimy.Core.Application.DTOs.KnowledgeBase;
 using Aimy.Core.Domain.Entities;
-
+using Microsoft.Extensions.Logging;
 public class KnowledgeItemService(
     IKnowledgeBaseRepository kbRepository,
     IFolderRepository folderRepository,
@@ -16,13 +16,17 @@ public class KnowledgeItemService(
     IUploadRepository uploadRepository,
     IDataIngestionService dataIngestionService,
     IStorageService storageService,
-    ICurrentUserService currentUserService) : IKnowledgeItemService
+    ICurrentUserService currentUserService,
+    IUploadKnowledgeSyncService uploadKnowledgeSyncService,
+    ILogger<KnowledgeItemService> logger) : IKnowledgeItemService
 {
     public async Task<ItemResponse> CreateNoteAsync(CreateNoteRequest request, CancellationToken ct)
     {
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Creating note {Title} in folder {FolderId} for user {UserId}",
+            request.Title, request.FolderId, userId);
         // Validate folder ownership
         var folder = await folderRepository.GetByIdAsync(request.FolderId, ct)
             ?? throw new KeyNotFoundException("Folder not found");
@@ -36,6 +40,7 @@ public class KnowledgeItemService(
         using var stream = new MemoryStream(contentBytes);
         stream.Position = 0;
 
+        var normalizedMetadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
         var storagePath = await storageService.UploadAsync(
             userId,
             $"{request.Title}.md",
@@ -50,25 +55,58 @@ public class KnowledgeItemService(
             StoragePath = storagePath,
             FileSizeBytes = contentBytes.Length,
             ContentType = "text/markdown",
-            Metadata = request.Metadata
+            Metadata = normalizedMetadata,
+            IngestionStatus = UploadIngestionStatus.Pending,
+            IngestionError = null,
+            IngestionStartedAt = null,
+            IngestionCompletedAt = null
         };
 
-        var savedUpload = await uploadRepository.AddAsync(upload, ct);
-
-        // Create knowledge item linked to upload
-        // Note: If this fails, we keep the upload (no rollback) as per plan
-        var item = new KnowledgeItem
+        Upload savedUpload;
+        try
         {
-            FolderId = request.FolderId,
-            Title = request.Title,
-            ItemType = KnowledgeItemType.Note,
-            Content = request.Content,
-            Metadata = request.Metadata,
-            SourceUploadId = savedUpload.Id
-        };
+            savedUpload = await uploadRepository.AddAsync(upload, ct);
+        }
+        catch
+        {
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
 
-        var savedItem = await itemRepository.AddAsync(item, ct);
-        return MapToResponse(savedItem);
+        try
+        {
+            await uploadKnowledgeSyncService.EnqueueIngestionAsync(savedUpload.Id, ct);
+        }
+        catch
+        {
+            await uploadRepository.DeleteAsync(savedUpload.Id, ct);
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
+
+        try
+        {
+            var item = new KnowledgeItem
+            {
+                FolderId = request.FolderId,
+                Title = request.Title,
+                ItemType = KnowledgeItemType.Note,
+                Content = request.Content,
+                Metadata = normalizedMetadata,
+                SourceUploadId = savedUpload.Id
+            };
+
+            var savedItem = await itemRepository.AddAsync(item, ct);
+            logger.LogInformation("Note created: {ItemId} ({Title})", savedItem.Id, savedItem.Title);
+            return MapToResponse(savedItem);
+        }
+        catch
+        {
+            await uploadRepository.DeleteAsync(savedUpload.Id, ct);
+            await storageService.DeleteAsync(storagePath, ct);
+            throw;
+        }
+
     }
 
     public async Task<ItemResponse> CreateFromUploadAsync(CreateItemFromUploadRequest request, CancellationToken ct)
@@ -76,6 +114,8 @@ public class KnowledgeItemService(
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Creating item from upload {UploadId} in folder {FolderId} for user {UserId}",
+            request.UploadId, request.FolderId, userId);
         // Validate folder ownership
         var folder = await folderRepository.GetByIdAsync(request.FolderId, ct)
             ?? throw new KeyNotFoundException("Folder not found");
@@ -91,15 +131,14 @@ public class KnowledgeItemService(
         if (upload.UserId != userId)
             throw new UnauthorizedAccessException("Upload does not belong to user");
 
-        var resolvedMetadata = string.IsNullOrWhiteSpace(request.Metadata)
+        var canonicalRequestMetadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
+        var resolvedMetadata = string.IsNullOrWhiteSpace(canonicalRequestMetadata)
             ? upload.Metadata
-            : request.Metadata;
+            : canonicalRequestMetadata;
 
-        if (!string.IsNullOrWhiteSpace(request.Metadata))
+        if (!string.IsNullOrWhiteSpace(canonicalRequestMetadata))
         {
-            upload.Metadata = request.Metadata;
-            await uploadRepository.UpdateAsync(upload, ct);
-            await dataIngestionService.UpdateMetadataByUploadIdAsync(upload.Id, upload.Metadata, ct);
+            await uploadKnowledgeSyncService.SyncMetadataAsync(upload, canonicalRequestMetadata, ct);
         }
 
         var item = new KnowledgeItem
@@ -120,6 +159,7 @@ public class KnowledgeItemService(
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Updating knowledge item {ItemId}", id);
         var item = await itemRepository.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException("Item not found");
 
@@ -164,11 +204,12 @@ public class KnowledgeItemService(
             sourceUpload.StoragePath = newStoragePath;
             sourceUpload.FileSizeBytes = contentBytes.Length;
             sourceUpload.ContentType = "text/markdown";
+            await uploadKnowledgeSyncService.ReingestAsync(sourceUpload.Id, ct);
         }
 
         if (sourceUpload is not null && metadataChanged)
         {
-            sourceUpload.Metadata = request.Metadata;
+            sourceUpload.Metadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
         }
 
         if (sourceUpload is not null)
@@ -177,7 +218,7 @@ public class KnowledgeItemService(
 
             if (metadataChanged)
             {
-                await dataIngestionService.UpdateMetadataByUploadIdAsync(sourceUpload.Id, sourceUpload.Metadata, ct);
+                await uploadKnowledgeSyncService.SyncMetadataAsync(sourceUpload, sourceUpload.Metadata, ct);
             }
         }
 
@@ -186,7 +227,7 @@ public class KnowledgeItemService(
         if (request.Content is not null)
             item.Content = request.Content;
         if (request.Metadata is not null)
-            item.Metadata = request.Metadata;
+            item.Metadata = uploadKnowledgeSyncService.NormalizeMetadataPayload(request.Metadata);
         if (request.FolderId.HasValue)
         {
             // Validate new folder ownership
@@ -210,6 +251,7 @@ public class KnowledgeItemService(
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Deleting knowledge item {ItemId}", id);
         var item = await itemRepository.GetByIdAsync(id, ct)
             ?? throw new KeyNotFoundException("Item not found");
 
@@ -220,6 +262,8 @@ public class KnowledgeItemService(
         // IMPORTANT: For notes, we UNLINK only - do NOT delete the underlying upload
         // This is by design per the plan
         await itemRepository.DeleteAsync(id, ct);
+
+        logger.LogInformation("Knowledge item deleted: {ItemId}", id);
     }
 
     public async Task<ItemResponse?> GetByIdAsync(Guid id, CancellationToken ct)
@@ -235,7 +279,20 @@ public class KnowledgeItemService(
         if (item.Folder?.KnowledgeBase?.UserId != userId)
             throw new UnauthorizedAccessException("Item does not belong to user");
 
-        return MapToResponse(item);
+        var response = MapToResponse(item);
+
+        if (item.SourceUploadId.HasValue)
+        {
+            var ingestion = await dataIngestionService.GetByUploadIdAsync(item.SourceUploadId.Value, ct);
+            if (ingestion is not null)
+            {
+                response.Summary = ingestion.Summary;
+                response.Chunks = ingestion.Chunks;
+                response.ChunkCount = ingestion.ChunkCount;
+            }
+        }
+
+        return response;
     }
 
     public async Task<PagedResult<ItemResponse>> SearchAsync(ItemSearchRequest request, CancellationToken ct)
@@ -243,6 +300,8 @@ public class KnowledgeItemService(
         var userId = currentUserService.GetCurrentUserId()
             ?? throw new UnauthorizedAccessException("User is not authenticated");
 
+        logger.LogInformation("Searching knowledge items for user {UserId}, folder: {FolderId}, search: {Search}",
+            userId, request.FolderId, request.Search);
         var kb = await kbRepository.GetOrCreateForUserAsync(userId, ct);
 
         IReadOnlyCollection<Guid>? folderIds = null;
@@ -310,8 +369,8 @@ public class KnowledgeItemService(
             SourceUploadId = item.SourceUploadId,
             SourceUploadFileName = item.SourceUpload?.FileName,
             SourceUploadMetadata = item.SourceUpload?.Metadata,
+            SourceMarkdown = item.SourceUpload?.SourceMarkdown,
             CreatedAt = item.CreatedAt,
-            UpdatedAt = item.UpdatedAt
         };
     }
 }

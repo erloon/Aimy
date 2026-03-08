@@ -12,7 +12,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<KnowledgeBase> KnowledgeBases => Set<KnowledgeBase>();
     public DbSet<Folder> Folders => Set<Folder>();
     public DbSet<KnowledgeItem> KnowledgeItems => Set<KnowledgeItem>();
+    public DbSet<MetadataDefinition> MetadataDefinitions => Set<MetadataDefinition>();
+    public DbSet<MetadataValueOption> MetadataValueOptions => Set<MetadataValueOption>();
     public DbSet<IngestionEmbeddingRecord> IngestionEmbeddings => Set<IngestionEmbeddingRecord>();
+    public DbSet<IngestionJob> IngestionJobs => Set<IngestionJob>();
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {

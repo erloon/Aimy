@@ -14,8 +14,9 @@ public sealed class IngestionOptions
 
     public string CollectionName { get; set; } = "ingestion_embeddings";
 
-    public string? DistanceFunction { get; set; }
+    public string DistanceFunction { get; set; } = "CosineSimilarity";
 
+    // IndexKind defaults to IndexKind.Flat when not specified
     public string? IndexKind { get; set; }
 
     public bool IncrementalIngestion { get; set; } = true;
@@ -27,4 +28,8 @@ public sealed class IngestionOptions
     public int SummaryMaxWordCount { get; set; } = 100;
 
     public string VectorStoreProvider { get; set; } = "pgvector";
+
+    public int MaxJobAttempts { get; set; } = 3;
+
+    public int RetryDelaySeconds { get; set; } = 30;
 }

@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Aimy.Core\Aimy.Core.csproj" />
+    <ProjectReference Include="..\Aimy.API\Aimy.API.csproj" />
   </ItemGroup>
 
   <ItemGroup>

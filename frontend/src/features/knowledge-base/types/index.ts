@@ -14,6 +14,19 @@ export interface KnowledgeItem {
   sourceUploadMetadata?: string | null
   createdAt: string
   updatedAt: string
+  sourceMarkdown?: string | null
+  summary?: string | null
+  chunkCount?: number | null
+  chunks?: UploadChunkResponse[] | null
+}
+
+export interface UploadChunkResponse {
+  id: string
+  chunkIndex: number
+  content: string
+  summary?: string | null
+  context?: string | null
+  tokenCount?: number | null
 }
 
 // Folder types
@@ -35,6 +48,13 @@ export interface FolderTreeNode {
 export interface FolderTreeResponse {
   rootFolders: FolderTreeNode[]
 }
+export interface FolderContentSummary {
+  itemCount: number
+  subfolderCount: number
+  hasContent: boolean
+}
+
+
 
 // Request types
 export interface CreateFolderRequest {
@@ -87,4 +107,18 @@ export interface PagedResult<T> {
   pageSize: number
   totalCount: number
   totalPages: number
+}
+
+export interface SemanticSearchResult {
+  id: string
+  title: string
+  itemType: KnowledgeItemType
+  content: string | null
+  metadata: string | null
+  folderName: string | null
+  sourceUploadId: string | null
+  sourceUploadFileName: string | null
+  score: number
+  createdAt: string
+  updatedAt: string
 }

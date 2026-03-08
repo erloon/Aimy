@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Input } from "@/components/ui/input"
 import { useItems, useDeleteItem } from "../hooks/useItems"
 import { ItemCard } from "./ItemCard"
 import { ItemTable } from "./ItemTable"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Search, LayoutGrid, List } from "lucide-react"
+import { Search, LayoutGrid, List, Tags } from "lucide-react"
 import { KnowledgeItem } from "../types"
 import { Button } from "@/components/ui/button"
 
@@ -12,15 +12,37 @@ interface ItemListProps {
   folderId?: string | null
   onEditItem?: (item: KnowledgeItem) => void
   onViewSource?: (item: KnowledgeItem) => void
+  onViewItem?: (item: KnowledgeItem) => void
 }
 
-export function ItemList({ folderId, onEditItem, onViewSource }: ItemListProps) {
+export function ItemList({ folderId, onEditItem, onViewSource, onViewItem }: ItemListProps) {
   const [search, setSearch] = useState('')
+  const [metadataSearch, setMetadataSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [debouncedMetadataSearch, setDebouncedMetadataSearch] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [search])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedMetadataSearch(metadataSearch)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [metadataSearch])
+
   const { data, isLoading, isError } = useItems({
     folderId: folderId || undefined,
     includeSubFolders: !!folderId,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
+    metadata: debouncedMetadataSearch || undefined,
     pageSize: 20
   })
   const deleteItem = useDeleteItem()
@@ -38,14 +60,26 @@ export function ItemList({ folderId, onEditItem, onViewSource }: ItemListProps) 
   return (
     <div className="space-y-4 h-full flex flex-col">
       <div className="flex items-center justify-between shrink-0 gap-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search items..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex flex-1 items-center gap-2 max-w-3xl">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search items..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          <div className="relative flex-1 max-w-sm">
+            <Tags className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder='Search metadata (e.g. framework:"microsoft.agents")'
+              value={metadataSearch}
+              onChange={(e) => setMetadataSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
 
         <div className="flex items-center border rounded-md bg-background shadow-sm">
@@ -102,6 +136,7 @@ export function ItemList({ folderId, onEditItem, onViewSource }: ItemListProps) 
                   onEdit={() => onEditItem?.(item)}
                   onDelete={() => handleDelete(item)}
                   onViewSource={item.sourceUploadId ? () => onViewSource?.(item) : undefined}
+                  onViewItem={() => onViewItem?.(item)}
                 />
               ))}
             </div>
@@ -112,6 +147,7 @@ export function ItemList({ folderId, onEditItem, onViewSource }: ItemListProps) 
                 onEdit={onEditItem}
                 onDelete={handleDelete}
                 onViewSource={onViewSource}
+                onViewItem={onViewItem}
               />
             </div>
           )

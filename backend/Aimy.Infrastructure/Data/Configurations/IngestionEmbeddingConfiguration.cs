@@ -48,7 +48,7 @@ public class IngestionEmbeddingConfiguration : IEntityTypeConfiguration<Ingestio
             .HasColumnName("summary");
 
         builder.Property(e => e.Metadata)
-            .HasColumnType("jsonb")
+            .HasColumnType("text")
             .HasColumnName("metadata");
 
         builder.Property(e => e.CreatedAt)

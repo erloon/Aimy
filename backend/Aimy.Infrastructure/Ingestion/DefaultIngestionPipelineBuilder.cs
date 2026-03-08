@@ -19,7 +19,9 @@ public sealed class DefaultIngestionPipelineBuilder(
     {
         var settings = options.Value;
         var tokenizer = TiktokenTokenizer.CreateForModel("gpt-4");
-        var reader = new MarkItDownMcpReader(new Uri(configurationProvider.GetMcpUrl()));
+        IngestionDocumentReader reader = upload.IsMarkdownUpload
+            ? new RawMarkdownReader()
+            : new MarkItDownMcpReader(new Uri(configurationProvider.GetMcpUrl()));
 
         var chunkerOptions = new IngestionChunkerOptions(tokenizer)
         {

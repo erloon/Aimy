@@ -56,6 +56,52 @@ namespace Aimy.Infrastructure.Migrations
                     b.ToTable("folders", (string)null);
                 });
 
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.IngestionJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ClaimedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UploadId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NextAttemptAt");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UploadId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" IN (0, 1)");
+
+                    b.ToTable("ingestion_jobs", (string)null);
+                });
+
             modelBuilder.Entity("Aimy.Core.Domain.Entities.KnowledgeBase", b =>
                 {
                     b.Property<Guid>("Id")
@@ -122,6 +168,103 @@ namespace Aimy.Infrastructure.Migrations
                     b.ToTable("knowledge_items", (string)null);
                 });
 
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.MetadataDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AllowFreeText")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Filterable")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<int>("Policy")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Required")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ValueType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("metadata_definitions", (string)null);
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.MetadataValueOption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<string[]>("Aliases")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("CanonicalValue")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayLabel")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MetadataDefinitionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CanonicalValue");
+
+                    b.HasIndex("MetadataDefinitionId");
+
+                    b.HasIndex("MetadataDefinitionId", "CanonicalValue")
+                        .IsUnique();
+
+                    b.ToTable("metadata_value_options", (string)null);
+                });
+
             modelBuilder.Entity("Aimy.Core.Domain.Entities.Upload", b =>
                 {
                     b.Property<Guid>("Id")
@@ -143,8 +286,23 @@ namespace Aimy.Infrastructure.Migrations
                     b.Property<long>("FileSizeBytes")
                         .HasColumnType("bigint");
 
+                    b.Property<DateTime?>("IngestionCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IngestionError")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("IngestionStartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("IngestionStatus")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Metadata")
                         .HasColumnType("jsonb");
+
+                    b.Property<string>("SourceMarkdown")
+                        .HasColumnType("text");
 
                     b.Property<string>("StoragePath")
                         .IsRequired()
@@ -155,6 +313,8 @@ namespace Aimy.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IngestionStatus");
 
                     b.HasIndex("UserId");
 
@@ -221,7 +381,7 @@ namespace Aimy.Infrastructure.Migrations
                         .HasColumnName("embedding");
 
                     b.Property<string>("Metadata")
-                        .HasColumnType("jsonb")
+                        .HasColumnType("text")
                         .HasColumnName("metadata");
 
                     b.Property<string>("SourceId")
@@ -261,6 +421,17 @@ namespace Aimy.Infrastructure.Migrations
                     b.Navigation("ParentFolder");
                 });
 
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.IngestionJob", b =>
+                {
+                    b.HasOne("Aimy.Core.Domain.Entities.Upload", "Upload")
+                        .WithMany()
+                        .HasForeignKey("UploadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Upload");
+                });
+
             modelBuilder.Entity("Aimy.Core.Domain.Entities.KnowledgeBase", b =>
                 {
                     b.HasOne("Aimy.Core.Domain.Entities.User", null)
@@ -288,6 +459,17 @@ namespace Aimy.Infrastructure.Migrations
                     b.Navigation("SourceUpload");
                 });
 
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.MetadataValueOption", b =>
+                {
+                    b.HasOne("Aimy.Core.Domain.Entities.MetadataDefinition", "Definition")
+                        .WithMany("ValueOptions")
+                        .HasForeignKey("MetadataDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Definition");
+                });
+
             modelBuilder.Entity("Aimy.Core.Domain.Entities.Folder", b =>
                 {
                     b.Navigation("Items");
@@ -298,6 +480,11 @@ namespace Aimy.Infrastructure.Migrations
             modelBuilder.Entity("Aimy.Core.Domain.Entities.KnowledgeBase", b =>
                 {
                     b.Navigation("Folders");
+                });
+
+            modelBuilder.Entity("Aimy.Core.Domain.Entities.MetadataDefinition", b =>
+                {
+                    b.Navigation("ValueOptions");
                 });
 #pragma warning restore 612, 618
         }

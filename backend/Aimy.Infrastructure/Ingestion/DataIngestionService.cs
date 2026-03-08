@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Globalization;
 
 namespace Aimy.Infrastructure.Ingestion;
 
@@ -20,6 +21,8 @@ public class DataIngestionService(
 {
     public async Task IngestDataAsync(Guid uploadId, CancellationToken cancellationToken)
     {
+        await DeleteByUploadIdAsync(uploadId, cancellationToken);
+
         var upload = await uploadRepository.GetByIdAsync(uploadId, cancellationToken);
         if (upload is null)
         {
@@ -58,6 +61,11 @@ public class DataIngestionService(
             document = await processor.ProcessAsync(document, cancellationToken);
         }
 
+        upload.SourceMarkdown = string.Join(
+            Environment.NewLine,
+            document.Sections.Select(s => s.GetMarkdown()));
+        await uploadRepository.UpdateAsync(upload, cancellationToken);
+
         var uploadMetadata = ParseUploadMetadata(upload.Metadata);
 
         var chunks = components.Chunker.ProcessAsync(document, cancellationToken)
@@ -65,16 +73,29 @@ public class DataIngestionService(
             {
                 chunk.Metadata["sourceid"] = upload.Id.ToString();
                 chunk.Metadata["createdat"] = DateTime.UtcNow;
-                if (uploadMetadata is not null)
-                {
-                    chunk.Metadata["upload_metadata"] = uploadMetadata;
-                }
                 return chunk;
             });
         foreach (var processor in pipeline.ChunkProcessors)
         {
             chunks = processor.ProcessAsync(chunks, cancellationToken);
         }
+
+        chunks = chunks.Select(chunk =>
+        {
+            var existingMetadata = TryGetMetadataPayload(chunk.Metadata);
+            var mergedMetadata = MergeChunkMetadata(existingMetadata, uploadMetadata);
+            if (mergedMetadata is null)
+            {
+                chunk.Metadata.Remove("metadata");
+            }
+            else
+            {
+                chunk.Metadata["metadata"] = mergedMetadata;
+            }
+
+            PromoteSummaryMetadata(chunk.Metadata);
+            return chunk;
+        });
 
         await writer.WriteAsync(chunks, cancellationToken);
     }
@@ -102,7 +123,8 @@ public class DataIngestionService(
 
         foreach (var chunk in chunks)
         {
-            chunk.Metadata = MergeChunkMetadata(chunk.Metadata, uploadMetadata);
+            var existingJson = chunk.Metadata;
+            chunk.Metadata = MergeChunkMetadata(existingJson, uploadMetadata);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -140,7 +162,7 @@ public class DataIngestionService(
         };
     }
 
-    private static JsonElement? ParseUploadMetadata(string? metadata)
+    private static string? ParseUploadMetadata(string? metadata)
     {
         if (string.IsNullOrWhiteSpace(metadata))
         {
@@ -150,7 +172,7 @@ public class DataIngestionService(
         try
         {
             using var jsonDocument = JsonDocument.Parse(metadata);
-            return jsonDocument.RootElement.Clone();
+            return jsonDocument.RootElement.GetRawText();
         }
         catch (JsonException)
         {
@@ -158,7 +180,7 @@ public class DataIngestionService(
         }
     }
 
-    private static string? MergeChunkMetadata(string? existingMetadata, JsonElement? uploadMetadata)
+    private static string? MergeChunkMetadata(string? existingMetadata, string? uploadMetadata)
     {
         JsonObject metadataObject;
 
@@ -184,9 +206,75 @@ public class DataIngestionService(
         }
         else
         {
-            metadataObject["upload_metadata"] = JsonNode.Parse(uploadMetadata.Value.GetRawText());
+            metadataObject["upload_metadata"] = JsonNode.Parse(uploadMetadata);
         }
 
         return metadataObject.ToJsonString();
+    }
+
+
+    private static string? TryGetMetadataPayload(IDictionary<string, object> metadata)
+    {
+        if (!metadata.TryGetValue("metadata", out var metadataValue) || metadataValue is null)
+        {
+            return null;
+        }
+
+        if (metadataValue is string metadataText)
+        {
+            return metadataText;
+        }
+
+        if (metadataValue is JsonElement jsonElement)
+        {
+            return jsonElement.GetRawText();
+        }
+
+        try
+        {
+            return JsonSerializer.Serialize(metadataValue);
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static bool TryConvertToString(object? value, out string? result)
+    {
+        result = value switch
+        {
+            null => null,
+            string text => text,
+            JsonElement element => element.ValueKind == JsonValueKind.String
+                ? element.GetString()
+                : element.GetRawText(),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture)
+        };
+
+        return !string.IsNullOrWhiteSpace(result);
+    }
+
+    private static void PromoteSummaryMetadata(IDictionary<string, object> metadata)
+    {
+        if (metadata.TryGetValue("summary", out var existingSummary)
+            && TryConvertToString(existingSummary, out _))
+        {
+            return;
+        }
+
+        foreach (var entry in metadata)
+        {
+            if (!entry.Key.Contains("summary", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (TryConvertToString(entry.Value, out var normalizedSummary))
+            {
+                metadata["summary"] = normalizedSummary!;
+                return;
+            }
+        }
     }
 }

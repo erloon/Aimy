@@ -55,7 +55,7 @@ public class UploadFileResponse
     /// <summary>
     /// Current ingestion lifecycle status for this upload.
     /// </summary>
-    public required string IngestionStatus { get; set; }
+    public string? IngestionStatus { get; set; }
 
     /// <summary>
     /// Last ingestion error message when status is Failed.

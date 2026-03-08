@@ -55,11 +55,7 @@ public class KnowledgeItemService(
             StoragePath = storagePath,
             FileSizeBytes = contentBytes.Length,
             ContentType = "text/markdown",
-            Metadata = normalizedMetadata,
-            IngestionStatus = UploadIngestionStatus.Pending,
-            IngestionError = null,
-            IngestionStartedAt = null,
-            IngestionCompletedAt = null
+            Metadata = normalizedMetadata
         };
 
         Upload savedUpload;
@@ -369,7 +365,7 @@ public class KnowledgeItemService(
             SourceUploadId = item.SourceUploadId,
             SourceUploadFileName = item.SourceUpload?.FileName,
             SourceUploadMetadata = item.SourceUpload?.Metadata,
-            SourceMarkdown = item.SourceUpload?.SourceMarkdown,
+            SourceMarkdown = null,
             CreatedAt = item.CreatedAt,
         };
     }

@@ -1,5 +1,6 @@
 using Aimy.Core.Application.Configuration;
 using Aimy.Core.Application.DTOs.Upload;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Application.Interfaces.Upload;
 using Aimy.Core.Domain.Entities;
 using Microsoft.Extensions.Logging;
@@ -17,15 +18,6 @@ public class IngestionJobService(
 
     public async Task EnqueueAsync(Guid uploadId, CancellationToken ct)
     {
-        var upload = await uploadRepository.GetByIdAsync(uploadId, ct);
-        if (upload is not null)
-        {
-            upload.IngestionStatus = UploadIngestionStatus.Pending;
-            upload.IngestionError = null;
-            upload.IngestionCompletedAt = null;
-            await uploadRepository.UpdateAsync(upload, ct);
-        }
-
         await ingestionJobRepository.EnqueueIfNotExistsAsync(uploadId, ct);
     }
 
@@ -51,12 +43,6 @@ public class IngestionJobService(
             return null;
         }
 
-        upload.IngestionStatus = UploadIngestionStatus.Processing;
-        upload.IngestionStartedAt = now;
-        upload.IngestionCompletedAt = null;
-        upload.IngestionError = null;
-        await uploadRepository.UpdateAsync(upload, ct);
-
         return new ClaimedIngestionJobDto
         {
             JobId = job.Id,
@@ -69,17 +55,6 @@ public class IngestionJobService(
     {
         var now = DateTime.UtcNow;
         await ingestionJobRepository.MarkCompletedAsync(jobId, now, ct);
-
-        var upload = await uploadRepository.GetByIdAsync(uploadId, ct);
-        if (upload is null)
-        {
-            return;
-        }
-
-        upload.IngestionStatus = UploadIngestionStatus.Completed;
-        upload.IngestionError = null;
-        upload.IngestionCompletedAt = now;
-        await uploadRepository.UpdateAsync(upload, ct);
     }
 
     public async Task MarkFailedAsync(Guid jobId, Guid uploadId, Exception exception, CancellationToken ct)
@@ -97,27 +72,13 @@ public class IngestionJobService(
             ct);
 
         var job = await ingestionJobRepository.GetByIdAsync(jobId, ct);
-        var hasPendingRetry = job is not null && job.Status == IngestionJobStatus.Pending;
-
-        var upload = await uploadRepository.GetByIdAsync(uploadId, ct);
-        if (upload is null)
-        {
-            return;
-        }
-
-        upload.IngestionStatus = hasPendingRetry
-            ? UploadIngestionStatus.Pending
-            : UploadIngestionStatus.Failed;
-        upload.IngestionError = error;
-        upload.IngestionCompletedAt = hasPendingRetry ? null : now;
-        await uploadRepository.UpdateAsync(upload, ct);
 
         logger.LogWarning(
             exception,
             "Ingestion job {JobId} failed for upload {UploadId}; pending retry: {HasPendingRetry}",
             jobId,
             uploadId,
-            hasPendingRetry);
+            job is not null && job.Status == IngestionJobStatus.Pending);
     }
 
     public async Task<IReadOnlyList<IngestionJobStatusResponse>> ListAsync(string? status, int limit, CancellationToken ct)

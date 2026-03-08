@@ -87,7 +87,7 @@ public class SemanticSearchService(
             SourceUploadId = item.SourceUploadId,
             SourceUploadFileName = item.SourceUpload?.FileName,
             SourceUploadMetadata = item.SourceUpload?.Metadata,
-            SourceMarkdown = item.SourceUpload?.SourceMarkdown,
+            SourceMarkdown = null,
             CreatedAt = item.CreatedAt,
         };
     }

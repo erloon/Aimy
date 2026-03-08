@@ -940,8 +940,7 @@ public class KnowledgeItemServiceTests
                 Id = sourceUploadId,
                 UserId = userId,
                 FileName = "test.pdf",
-                StoragePath = "test/path",
-                SourceMarkdown = "# Full Document\nParagraph one\nParagraph two"
+                StoragePath = "test/path"
             }
         };
 
@@ -976,7 +975,7 @@ public class KnowledgeItemServiceTests
         result.ChunkCount.Should().Be(2);
         result.Chunks.Should().NotBeNull();
         result.Chunks!.Should().HaveCount(2);
-        result.SourceMarkdown.Should().Be("# Full Document\nParagraph one\nParagraph two");
+        result.SourceMarkdown.Should().BeNull();
 
         _dataIngestionServiceMock.Verify(
             s => s.GetByUploadIdAsync(sourceUploadId, It.IsAny<CancellationToken>()),

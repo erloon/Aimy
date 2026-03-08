@@ -51,11 +51,7 @@ public class UploadService(
             StoragePath = storagePath,
             FileSizeBytes = fileSizeBytes,
             ContentType = contentType,
-            Metadata = normalizedMetadata,
-            IngestionStatus = UploadIngestionStatus.Pending,
-            IngestionError = null,
-            IngestionStartedAt = null,
-            IngestionCompletedAt = null
+            Metadata = normalizedMetadata
         };
 
         Domain.Entities.Upload savedUpload;
@@ -181,10 +177,10 @@ public class UploadService(
             SizeBytes = upload.FileSizeBytes,
             UploadedAt = upload.DateUploaded,
             Metadata = upload.Metadata,
-            IngestionStatus = upload.IngestionStatus.ToString(),
-            IngestionError = upload.IngestionError,
-            IngestionStartedAt = upload.IngestionStartedAt,
-            IngestionCompletedAt = upload.IngestionCompletedAt,
+            IngestionStatus = null,
+            IngestionError = null,
+            IngestionStartedAt = null,
+            IngestionCompletedAt = null,
             Ingestion = ingestion
         };
     }

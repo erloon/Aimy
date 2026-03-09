@@ -7,6 +7,7 @@ import {
   searchItems,
   semanticSearch,
   updateItem,
+  uploadToFolder,
 } from '../api/knowledge-base-api'
 import type {
   CreateItemFromUploadRequest,
@@ -49,6 +50,17 @@ export function useCreateItemFromUpload() {
 
   return useMutation<KnowledgeItem, Error, CreateItemFromUploadRequest>({
     mutationFn: createItemFromUpload,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['items'] })
+    },
+  })
+}
+
+export function useUploadToFolder() {
+  const queryClient = useQueryClient()
+
+  return useMutation<KnowledgeItem, Error, { file: File; folderId: string; title?: string; metadata?: string }>({
+    mutationFn: ({ file, folderId, title, metadata }) => uploadToFolder(file, folderId, title, metadata),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['items'] })
     },

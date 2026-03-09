@@ -31,27 +31,12 @@ public class UploadConfiguration : IEntityTypeConfiguration<Upload>
         
         builder.Property(u => u.Metadata)
             .HasColumnType("jsonb");
-
-        builder.Property(u => u.SourceMarkdown)
-            .HasColumnType("text");
-
-        builder.Property(u => u.IngestionStatus)
-            .HasConversion<int>()
-            .IsRequired();
-
-        builder.Property(u => u.IngestionError)
-            .HasColumnType("text");
-
-        builder.Property(u => u.IngestionStartedAt);
-
-        builder.Property(u => u.IngestionCompletedAt);
         
         builder.Property(u => u.DateUploaded)
             .IsRequired();
         
         // Index for querying uploads by user
         builder.HasIndex(u => u.UserId);
-        builder.HasIndex(u => u.IngestionStatus);
         
         // Composite index for duplicate filename checking
         builder.HasIndex(u => new { u.UserId, u.FileName });

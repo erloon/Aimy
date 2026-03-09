@@ -7,6 +7,7 @@ public interface IKnowledgeItemService
 {
     Task<ItemResponse> CreateNoteAsync(CreateNoteRequest request, CancellationToken ct);
     Task<ItemResponse> CreateFromUploadAsync(CreateItemFromUploadRequest request, CancellationToken ct);
+    Task<ItemResponse> UploadToFolderAsync(UploadToFolderRequest request, CancellationToken ct);
     Task<ItemResponse> UpdateAsync(Guid id, UpdateItemRequest request, CancellationToken ct);
     Task DeleteAsync(Guid id, CancellationToken ct);
     Task<ItemResponse?> GetByIdAsync(Guid id, CancellationToken ct);

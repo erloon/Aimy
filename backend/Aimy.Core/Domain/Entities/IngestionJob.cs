@@ -7,6 +7,7 @@ public class IngestionJob
     public IngestionJobStatus Status { get; set; }
     public int Attempts { get; set; }
     public DateTime NextAttemptAt { get; set; }
+    public DateTime? StartedAt { get; set; }
     public DateTime? ClaimedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string? LastError { get; set; }

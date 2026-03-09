@@ -1,4 +1,4 @@
-using Aimy.Core.Application.Interfaces.Upload;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Aimy.Core.Domain.Entities;
 using Aimy.Infrastructure.Data;
 using System.Data;
@@ -84,6 +84,7 @@ public class IngestionJobRepository(ApplicationDbContext context) : IIngestionJo
                 UPDATE ingestion_jobs AS jobs
                 SET ""Status"" = @processingStatus,
                     ""ClaimedAt"" = @nowUtc,
+                    ""StartedAt"" = @nowUtc,
                     ""UpdatedAt"" = @nowUtc,
                     ""LastError"" = NULL
                 FROM candidate
@@ -95,6 +96,7 @@ public class IngestionJobRepository(ApplicationDbContext context) : IIngestionJo
                     jobs.""Attempts"",
                     jobs.""NextAttemptAt"",
                     jobs.""ClaimedAt"",
+                    jobs.""StartedAt"",
                     jobs.""CompletedAt"",
                     jobs.""LastError"",
                     jobs.""CreatedAt"",
@@ -128,10 +130,11 @@ public class IngestionJobRepository(ApplicationDbContext context) : IIngestionJo
                         Attempts = reader.GetInt32(3),
                         NextAttemptAt = reader.GetDateTime(4),
                         ClaimedAt = reader.IsDBNull(5) ? null : reader.GetDateTime(5),
-                        CompletedAt = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
-                        LastError = reader.IsDBNull(7) ? null : reader.GetString(7),
-                        CreatedAt = reader.GetDateTime(8),
-                        UpdatedAt = reader.GetDateTime(9)
+                        StartedAt = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
+                        CompletedAt = reader.IsDBNull(7) ? null : reader.GetDateTime(7),
+                        LastError = reader.IsDBNull(8) ? null : reader.GetString(8),
+                        CreatedAt = reader.GetDateTime(9),
+                        UpdatedAt = reader.GetDateTime(10)
                     };
                 }
             }

@@ -4,11 +4,15 @@ using Aimy.Core.Application.DTOs.KnowledgeBase;
 using Aimy.Core.Domain.Entities;
 using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Aimy.API.Endpoints;
 
 public static class KnowledgeItemEndpoints
 {
+    private const long MaxFileSizeBytes = 50 * 1024 * 1024; // 50MB
+    private static readonly string[] AllowedExtensions = [".txt", ".docx", ".md", ".pdf"];
+
     public static IEndpointRouteBuilder MapKnowledgeItemEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/kb/items")
@@ -51,6 +55,17 @@ public static class KnowledgeItemEndpoints
             .WithName("CreateItemFromUpload")
             .WithSummary("Create a knowledge item from an existing upload")
             .Accepts<CreateItemFromUploadRequest>("application/json")
+            .Produces<ItemResponse>(StatusCodes.Status201Created)
+            .Produces<BadRequest<ErrorResponse>>()
+            .Produces<UnauthorizedHttpResult>()
+            .Produces<NotFound>()
+            .Produces(StatusCodes.Status500InternalServerError);
+
+        group.MapPost("/upload", UploadToFolder)
+            .WithName("UploadToFolder")
+            .WithSummary("Upload a file and create a knowledge item in one step")
+            .DisableAntiforgery()
+            .Accepts<IFormFile>("multipart/form-data")
             .Produces<ItemResponse>(StatusCodes.Status201Created)
             .Produces<BadRequest<ErrorResponse>>()
             .Produces<UnauthorizedHttpResult>()
@@ -220,6 +235,64 @@ public static class KnowledgeItemEndpoints
         try
         {
             var result = await itemService.CreateFromUploadAsync(request, ct);
+            return TypedResults.Created($"/kb/items/{result.Id}", result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return TypedResults.Unauthorized();
+        }
+        catch (KeyNotFoundException)
+        {
+            return TypedResults.NotFound();
+        }
+        catch (Exception ex)
+        {
+            return TypedResults.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+        }
+    }
+
+    private static async Task<Results<Created<ItemResponse>, BadRequest<ErrorResponse>, UnauthorizedHttpResult, NotFound,
+        ProblemHttpResult>> UploadToFolder(
+        [FromForm] IFormFile file,
+        [FromForm] Guid folderId,
+        [FromForm] string? title,
+        [FromForm] string? metadata,
+        IKnowledgeItemService itemService,
+        CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return TypedResults.BadRequest(new ErrorResponse { Error = "File is required" });
+        }
+
+        if (file.Length > MaxFileSizeBytes)
+        {
+            return TypedResults.BadRequest(new ErrorResponse { Error = "File size must not exceed 50MB" });
+        }
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedExtensions.Contains(extension))
+        {
+            return TypedResults.BadRequest(new ErrorResponse
+            {
+                Error = $"File extension must be one of: {string.Join(", ", AllowedExtensions)}"
+            });
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var request = new UploadToFolderRequest
+            {
+                FolderId = folderId,
+                Title = title,
+                Metadata = metadata,
+                FileName = file.FileName,
+                ContentType = file.ContentType,
+                FileStream = stream
+            };
+
+            var result = await itemService.UploadToFolderAsync(request, ct);
             return TypedResults.Created($"/kb/items/{result.Id}", result);
         }
         catch (UnauthorizedAccessException)

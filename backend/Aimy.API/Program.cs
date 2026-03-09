@@ -114,6 +114,7 @@ app.MapAuthEndpoints();
 app.MapUploadEndpoints();
 app.MapFolderEndpoints();
 app.MapKnowledgeItemEndpoints();
+app.MapIngestionEndpoints();
 app.MapMetadataEndpoints();
 
 

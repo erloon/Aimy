@@ -1,5 +1,5 @@
 using Aimy.Core.Application.Interfaces.Ingestion;
-using Aimy.Core.Application.Interfaces.Upload;
+using Aimy.Core.Application.Interfaces.KnowledgeBase;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

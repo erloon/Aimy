@@ -19,7 +19,7 @@ public sealed class DefaultIngestionPipelineBuilder(
     {
         var settings = options.Value;
         var tokenizer = TiktokenTokenizer.CreateForModel("gpt-4");
-        IngestionDocumentReader reader = upload.IsMarkdownUpload
+        IngestionDocumentReader reader = IsMarkdownUpload(upload)
             ? new RawMarkdownReader()
             : new MarkItDownMcpReader(new Uri(configurationProvider.GetMcpUrl()));
 
@@ -63,5 +63,26 @@ public sealed class DefaultIngestionPipelineBuilder(
             ChunkProcessors = chunkProcessors,
             EmbeddingGenerator = embeddingGenerator
         });
+    }
+
+    private static bool IsMarkdownUpload(Upload upload)
+    {
+        if (!string.IsNullOrWhiteSpace(upload.ContentType))
+        {
+            var mediaType = upload.ContentType.Split(';', 2)[0].Trim();
+            if (mediaType.Equals("text/markdown", StringComparison.OrdinalIgnoreCase)
+                || mediaType.Equals("text/x-markdown", StringComparison.OrdinalIgnoreCase)
+                || mediaType.Equals("application/markdown", StringComparison.OrdinalIgnoreCase)
+                || mediaType.Equals("application/x-markdown", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        var extension = Path.GetExtension(upload.FileName);
+        return extension.Equals(".md", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".markdown", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".mdown", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".mkd", StringComparison.OrdinalIgnoreCase);
     }
 }

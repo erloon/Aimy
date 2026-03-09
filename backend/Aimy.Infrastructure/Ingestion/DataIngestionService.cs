@@ -48,23 +48,8 @@ public class DataIngestionService(
 
         foreach (var processor in components.DocumentProcessors)
         {
-            pipeline.DocumentProcessors.Add(processor);
-        }
-
-        foreach (var processor in components.ChunkProcessors)
-        {
-            pipeline.ChunkProcessors.Add(processor);
-        }
-
-        foreach (var processor in pipeline.DocumentProcessors)
-        {
             document = await processor.ProcessAsync(document, cancellationToken);
         }
-
-        upload.SourceMarkdown = string.Join(
-            Environment.NewLine,
-            document.Sections.Select(s => s.GetMarkdown()));
-        await uploadRepository.UpdateAsync(upload, cancellationToken);
 
         var uploadMetadata = ParseUploadMetadata(upload.Metadata);
 

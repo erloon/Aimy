@@ -104,8 +104,8 @@ public class KnowledgeItemServiceTests
             .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
 
         _storageServiceMock
-            .Setup(s => s.UploadAsync(userId, It.IsAny<string>(), It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()))
-            .Callback<Guid, string, Stream, string?, CancellationToken>((_, _, stream, _, _) =>
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", It.IsAny<string>(), It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()))
+            .Callback<Guid, string, string, Stream, string?, CancellationToken>((_, _, _, stream, _, _) =>
             {
                 streamPositionDuringUpload = stream.Position;
             })
@@ -139,7 +139,7 @@ public class KnowledgeItemServiceTests
         result.ItemType.Should().Be(KnowledgeItemType.Note);
         result.SourceUploadId.Should().Be(uploadId);
 
-        _storageServiceMock.Verify(s => s.UploadAsync(userId, "Test Note.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()), Times.Once);
+        _storageServiceMock.Verify(s => s.UploadAsync(userId, "knowledgebase", "Test Note.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()), Times.Once);
         _uploadRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()), Times.Once);
         _uploadRepositoryMock.Verify(r => r.AddAsync(
             It.Is<Upload>(u => u.Metadata == "[\"test\"]"),
@@ -224,7 +224,7 @@ public class KnowledgeItemServiceTests
         act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("Folder does not belong to user");
 
-        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     #endregion
@@ -435,6 +435,355 @@ public class KnowledgeItemServiceTests
 
     #endregion
 
+    #region UploadToFolderAsync Tests
+
+    [Test]
+    public async Task UploadToFolderAsync_ValidRequest_CreatesUploadAndItem()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        const string storagePath = "knowledgebase/user/items/file.pdf";
+        const string fileName = "file.pdf";
+        var fileBytes = new byte[] { 1, 2, 3, 4 };
+
+        await using var stream = new MemoryStream(fileBytes);
+        var request = new UploadToFolderRequest
+        {
+            FolderId = folderId,
+            Title = "Uploaded File",
+            Metadata = "[\"kb\"]",
+            FileName = fileName,
+            ContentType = "application/pdf",
+            FileStream = stream
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Folder { Id = folderId, KnowledgeBaseId = kbId, Name = "Folder" });
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _storageServiceMock
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", fileName, It.IsAny<Stream>(), "application/pdf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storagePath);
+
+        _uploadRepositoryMock
+            .Setup(r => r.AddAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Upload upload, CancellationToken _) =>
+            {
+                upload.Id = uploadId;
+                return upload;
+            });
+
+        _itemRepositoryMock
+            .Setup(r => r.AddAsync(It.IsAny<KnowledgeItem>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((KnowledgeItem item, CancellationToken _) =>
+            {
+                item.Id = itemId;
+                return item;
+            });
+
+        // Act
+        var result = await _sut.UploadToFolderAsync(request, CancellationToken.None);
+
+        // Assert
+        result.Id.Should().Be(itemId);
+        result.FolderId.Should().Be(folderId);
+        result.Title.Should().Be("Uploaded File");
+        result.ItemType.Should().Be(KnowledgeItemType.File);
+        result.Metadata.Should().Be("[\"kb\"]");
+        result.SourceUploadId.Should().Be(uploadId);
+
+        _uploadRepositoryMock.Verify(r => r.AddAsync(
+            It.Is<Upload>(u => u.UserId == userId
+                && u.FileName == fileName
+                && u.StoragePath == storagePath
+                && u.FileSizeBytes == 4
+                && u.ContentType == "application/pdf"
+                && u.Metadata == "[\"kb\"]"),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _uploadKnowledgeSyncServiceMock.Verify(s => s.EnqueueIngestionAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
+        _itemRepositoryMock.Verify(r => r.AddAsync(
+            It.Is<KnowledgeItem>(i => i.FolderId == folderId
+                && i.Title == "Uploaded File"
+                && i.ItemType == KnowledgeItemType.File
+                && i.Metadata == "[\"kb\"]"
+                && i.SourceUploadId == uploadId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public void UploadToFolderAsync_StorageUploadFails_DoesNotCreateUploadOrItem()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+
+        var request = new UploadToFolderRequest
+        {
+            FolderId = folderId,
+            FileName = "file.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Folder { Id = folderId, KnowledgeBaseId = kbId, Name = "Folder" });
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _storageServiceMock
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", "file.pdf", It.IsAny<Stream>(), "application/pdf", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("storage down"));
+
+        // Act
+        var act = () => _sut.UploadToFolderAsync(request, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<InvalidOperationException>().WithMessage("storage down");
+        _uploadRepositoryMock.Verify(r => r.AddAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()), Times.Never);
+        _itemRepositoryMock.Verify(r => r.AddAsync(It.IsAny<KnowledgeItem>(), It.IsAny<CancellationToken>()), Times.Never);
+        _storageServiceMock.Verify(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void UploadToFolderAsync_UploadSaveFails_DeletesStorageObject()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        const string storagePath = "knowledgebase/user/items/file.pdf";
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+
+        var request = new UploadToFolderRequest
+        {
+            FolderId = folderId,
+            FileName = "file.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Folder { Id = folderId, KnowledgeBaseId = kbId, Name = "Folder" });
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _storageServiceMock
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", "file.pdf", It.IsAny<Stream>(), "application/pdf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storagePath);
+
+        _uploadRepositoryMock
+            .Setup(r => r.AddAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db failed"));
+
+        // Act
+        var act = () => _sut.UploadToFolderAsync(request, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<InvalidOperationException>().WithMessage("db failed");
+        _storageServiceMock.Verify(s => s.DeleteAsync(storagePath, It.IsAny<CancellationToken>()), Times.Once);
+        _uploadRepositoryMock.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _itemRepositoryMock.Verify(r => r.AddAsync(It.IsAny<KnowledgeItem>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void UploadToFolderAsync_EnqueueFails_DeletesUploadAndStorage()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+        const string storagePath = "knowledgebase/user/items/file.pdf";
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+
+        var request = new UploadToFolderRequest
+        {
+            FolderId = folderId,
+            FileName = "file.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Folder { Id = folderId, KnowledgeBaseId = kbId, Name = "Folder" });
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _storageServiceMock
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", "file.pdf", It.IsAny<Stream>(), "application/pdf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storagePath);
+
+        _uploadRepositoryMock
+            .Setup(r => r.AddAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Upload upload, CancellationToken _) =>
+            {
+                upload.Id = uploadId;
+                return upload;
+            });
+
+        _uploadKnowledgeSyncServiceMock
+            .Setup(s => s.EnqueueIngestionAsync(uploadId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("queue failed"));
+
+        // Act
+        var act = () => _sut.UploadToFolderAsync(request, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<InvalidOperationException>().WithMessage("queue failed");
+        _uploadRepositoryMock.Verify(r => r.DeleteAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
+        _storageServiceMock.Verify(s => s.DeleteAsync(storagePath, It.IsAny<CancellationToken>()), Times.Once);
+        _itemRepositoryMock.Verify(r => r.AddAsync(It.IsAny<KnowledgeItem>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public void UploadToFolderAsync_ItemCreateFails_DeletesUploadAndStorage()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var kbId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        var uploadId = Guid.NewGuid();
+        const string storagePath = "knowledgebase/user/items/file.pdf";
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+
+        var request = new UploadToFolderRequest
+        {
+            FolderId = folderId,
+            FileName = "file.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Folder { Id = folderId, KnowledgeBaseId = kbId, Name = "Folder" });
+
+        _kbRepositoryMock
+            .Setup(r => r.GetOrCreateForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new KnowledgeBase { Id = kbId, UserId = userId });
+
+        _storageServiceMock
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", "file.pdf", It.IsAny<Stream>(), "application/pdf", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(storagePath);
+
+        _uploadRepositoryMock
+            .Setup(r => r.AddAsync(It.IsAny<Upload>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Upload upload, CancellationToken _) =>
+            {
+                upload.Id = uploadId;
+                return upload;
+            });
+
+        _itemRepositoryMock
+            .Setup(r => r.AddAsync(It.IsAny<KnowledgeItem>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("item save failed"));
+
+        // Act
+        var act = () => _sut.UploadToFolderAsync(request, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<InvalidOperationException>().WithMessage("item save failed");
+        _uploadRepositoryMock.Verify(r => r.DeleteAsync(uploadId, It.IsAny<CancellationToken>()), Times.Once);
+        _storageServiceMock.Verify(s => s.DeleteAsync(storagePath, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public void UploadToFolderAsync_NoCurrentUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+        var request = new UploadToFolderRequest
+        {
+            FolderId = Guid.NewGuid(),
+            FileName = "file.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns((Guid?)null);
+
+        // Act
+        var act = () => _sut.UploadToFolderAsync(request, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("User is not authenticated");
+    }
+
+    [Test]
+    public void UploadToFolderAsync_FolderNotFound_ThrowsKeyNotFoundException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var folderId = Guid.NewGuid();
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+        var request = new UploadToFolderRequest
+        {
+            FolderId = folderId,
+            FileName = "file.pdf",
+            ContentType = "application/pdf",
+            FileStream = stream
+        };
+
+        _currentUserServiceMock
+            .Setup(s => s.GetCurrentUserId())
+            .Returns(userId);
+
+        _folderRepositoryMock
+            .Setup(r => r.GetByIdAsync(folderId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Folder?)null);
+
+        // Act
+        var act = () => _sut.UploadToFolderAsync(request, CancellationToken.None);
+
+        // Assert
+        act.Should().ThrowAsync<KeyNotFoundException>()
+            .WithMessage("Folder not found");
+    }
+
+    #endregion
+
     #region UpdateAsync Tests
 
     [Test]
@@ -533,7 +882,7 @@ public class KnowledgeItemServiceTests
             .Returns(Task.CompletedTask);
 
         _storageServiceMock
-            .Setup(s => s.UploadAsync(userId, "Updated Title.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()))
+            .Setup(s => s.UploadAsync(userId, "knowledgebase", "Updated Title.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()))
             .ReturnsAsync(newStoragePath);
 
         _storageServiceMock
@@ -548,7 +897,7 @@ public class KnowledgeItemServiceTests
         result.Content.Should().Be("Updated Content");
         result.Metadata.Should().Be("[\"updated\"]");
 
-        _storageServiceMock.Verify(s => s.UploadAsync(userId, "Updated Title.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()), Times.Once);
+        _storageServiceMock.Verify(s => s.UploadAsync(userId, "knowledgebase", "Updated Title.md", It.IsAny<Stream>(), "text/markdown", It.IsAny<CancellationToken>()), Times.Once);
         _storageServiceMock.Verify(s => s.DeleteAsync(oldStoragePath, It.IsAny<CancellationToken>()), Times.Once);
         _uploadRepositoryMock.Verify(r => r.UpdateAsync(
             It.Is<Upload>(u => u.Id == uploadId
@@ -623,7 +972,7 @@ public class KnowledgeItemServiceTests
                 "[\"file-updated\"]",
                 It.IsAny<CancellationToken>()),
             Times.Once);
-        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _storageServiceMock.Verify(s => s.UploadAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _storageServiceMock.Verify(s => s.DeleteAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -940,8 +1289,7 @@ public class KnowledgeItemServiceTests
                 Id = sourceUploadId,
                 UserId = userId,
                 FileName = "test.pdf",
-                StoragePath = "test/path",
-                SourceMarkdown = "# Full Document\nParagraph one\nParagraph two"
+                StoragePath = "test/path"
             }
         };
 
@@ -976,7 +1324,7 @@ public class KnowledgeItemServiceTests
         result.ChunkCount.Should().Be(2);
         result.Chunks.Should().NotBeNull();
         result.Chunks!.Should().HaveCount(2);
-        result.SourceMarkdown.Should().Be("# Full Document\nParagraph one\nParagraph two");
+        result.SourceMarkdown.Should().BeNull();
 
         _dataIngestionServiceMock.Verify(
             s => s.GetByUploadIdAsync(sourceUploadId, It.IsAny<CancellationToken>()),

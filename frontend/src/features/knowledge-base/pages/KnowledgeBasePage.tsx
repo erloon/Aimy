@@ -3,11 +3,12 @@ import { FolderTree } from '../components/FolderTree'
 import { ItemList } from '../components/ItemList'
 import { NoteEditor } from '../components/NoteEditor'
 import { FileLinkDialog } from '../components/FileLinkDialog'
+import { UploadToFolderDialog } from '../components/UploadToFolderDialog'
 import { CreateFolderDialog } from '../components/CreateFolderDialog'
 import { FilePreviewSheet } from '@/components/shared/FilePreviewSheet'
 import { ItemDetailView } from '../components/ItemDetailView'
 import { Button } from '@/components/ui/button'
-import { Plus, Link2 } from 'lucide-react'
+import { Plus, Link2, Upload } from 'lucide-react'
 import { KnowledgeItem } from '../types'
 import { useItem } from '../hooks/useKnowledgeBase'
 import { Separator } from "@/components/ui/separator"
@@ -19,6 +20,7 @@ export function KnowledgeBasePage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [noteEditorOpen, setNoteEditorOpen] = useState(false)
   const [fileLinkOpen, setFileLinkOpen] = useState(false)
+  const [uploadOpen, setUploadOpen] = useState(false)
   const [createFolderOpen, setCreateFolderOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<KnowledgeItem | undefined>(undefined)
   const [previewSource, setPreviewSource] = useState<{ id: string; name: string } | null>(null)
@@ -120,6 +122,16 @@ export function KnowledgeBasePage() {
                   Link File
                 </Button>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUploadOpen(true)}
+                  disabled={!selectedFolderId}
+                  title={!selectedFolderId ? "Select a folder to upload files" : "Upload a file"}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload File
+                </Button>
+                <Button
                   size="sm"
                   onClick={handleCreateNote}
                   disabled={!selectedFolderId}
@@ -162,6 +174,15 @@ export function KnowledgeBasePage() {
       <FileLinkDialog
         open={fileLinkOpen}
         onOpenChange={setFileLinkOpen}
+        folderId={selectedFolderId || ""}
+        onSuccess={() => {
+          // ItemList will auto-refresh via React Query
+        }}
+      />
+
+      <UploadToFolderDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
         folderId={selectedFolderId || ""}
         onSuccess={() => {
           // ItemList will auto-refresh via React Query

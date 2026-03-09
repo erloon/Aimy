@@ -274,3 +274,11 @@ Mirrored `MetadataEndpointsContractTests.cs` exactly: reflection-only contract t
 - Old routes `/uploads/ingestion-jobs` confirmed GONE — grep on `UploadEndpoints.cs` returns 0 matches; `OldIngestionRoutesRemovedFromUploadEndpoints` test passes.
 - Total test count went from 102 → 111 (9 new tests added).
 - Evidence: `.sisyphus/evidence/task-11-backend-tests.txt`
+
+## [2026-03-09] Task 12 - End-to-End verification wave
+
+### Verification Learnings
+- `GET /kb/folders/tree` returns an object wrapper (`rootFolders`) and can be empty in a clean environment; E2E scripts should create a folder when none exist.
+- Unified endpoint contract validated in runtime flow: `POST /kb/items/upload` returns `201` and `GET /kb/ingestion/jobs` immediately surfaces a job for the uploaded file.
+- `UploadToFolderDialog` frontend validation prevents unsupported extensions client-side with explicit error text and disabled submit, preventing phantom item creation.
+- Aspire resource state should be paired with API console log checks; runtime migration/query failures can still force API exit while infra remains healthy.

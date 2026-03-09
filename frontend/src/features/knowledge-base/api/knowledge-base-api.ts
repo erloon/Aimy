@@ -128,6 +128,24 @@ export async function createItemFromUpload(
   })
 }
 
+export async function uploadToFolder(
+  file: File,
+  folderId: string,
+  title?: string,
+  metadata?: string
+): Promise<KnowledgeItem> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('folderId', folderId)
+  if (title) formData.append('title', title)
+  if (metadata) formData.append('metadata', metadata)
+
+  return fetchClient<KnowledgeItem>('/kb/items/upload', {
+    method: 'POST',
+    body: formData,
+  })
+}
+
 export async function updateItem(id: string, request: UpdateItemRequest): Promise<KnowledgeItem> {
   return fetchClient<KnowledgeItem>(`/kb/items/${id}`, {
     method: 'PUT',
